@@ -32,15 +32,18 @@ packages <- c("devtools",
               "microeco",
               "eulerr",
               "microbiomeutilities",
-              "ComplexHeatmap",
               "ggtreeExtra", #github
-              "taxize",
               "mgcv",
-              "indicspecies",
               "cowplot",
               "geosphere",
               "MiscMetabar",
-              "ggVennDiagram")
+              "ggVennDiagram",
+              'lme4',
+              "car",
+              "ggsignif",
+              "emmeans",
+              "ggeffects",
+              "gridExtra")
 
 new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -88,6 +91,8 @@ write.csv(meta_target_t, file = "Processed_Data/PRIMER7_format/meta_target_t.csv
 
 taxa_target <- data.frame(otu_table(phylo_rocky_eDNA))
 write.csv(taxa_target, file = "Processed_Data/PRIMER7_format/taxa_target.csv") 
+
+taxonomy_table <- tax_table(phylo_rocky_eDNA)
 
 # CO1
 pseq_CO1 <- ps_filter(phylo_rocky_eDNA, primer == "CO1")
@@ -163,7 +168,7 @@ fieldID_counts <- meta_target %>%
   dplyr::summarise(num_fieldIDs = n_distinct(fieldID))
                    
 # View results
-head(fieldID_counts) # 21 / 32 have full sampling effort
+print(fieldID_counts) # 21 / 32 have full sampling effort
 ```
 
 ## Taxonomy
@@ -246,7 +251,6 @@ for (n in primers){ # for each variable n in primers
   
   print(paste0("No. of core taxa in ", n, " : ", length(core_m))) # print core taxa identified in each DiseaseState.
   list_core[[n]] <- core_m # add to a list core taxa for each group.
-  print(list_core)
 }
 
 # Specify colors and plot venn
@@ -286,7 +290,6 @@ for (n in shore){ # for each variable n in primers
   
   print(paste0("No. of core taxa in ", n, " : ", length(core_m))) # print core taxa identified in each DiseaseState.
   list_core[[n]] <- core_m # add to a list core taxa for each group.
-  print(list_core)
 }
 
 venn_all_shore <- plot(euler(list_core),
@@ -304,8 +307,13 @@ venn_all_shore
 
 #| label: both-venn-diagram
 
-venn_two <- cowplot::plot_grid(venn_all_primers,
-                      venn_all_shore, labels = c('a', 'b'), label_size = 50, nrow = 1)
+venn_two <- cowplot::plot_grid(
+  venn_all_primers,
+  venn_all_shore,
+  labels = c('a', 'b'),
+  label_size = 50,
+  nrow = 1
+)
 
 venn_two 
 
@@ -318,7 +326,6 @@ ggsave(filename = "Figures/venn_two.png", plot = venn_two,
 #| label: country-venn-diagram
 
 #using another venn function
-
 ggvenn_pq(
   physeq = phylo_rocky_eDNA,
   fact = "country",
@@ -336,107 +343,122 @@ ggvenn_pq(
 
 ```
 
+#### Summary bar plots
+
+Let's make some simple visualizing of all taxonomic groups together.
+
 ```{r}
-## Simple visualizing of all taxonomic groups together ----
 
-# Subset phylo
-species_data <- as.data.frame(tax_table(phylo_rocky_eDNA)) #Extract the species data from the phyloseq object
+#| label: taxa-together-kingdom
 
-### Kingdom summary ----
+taxonomy_table <- as.data.frame(taxonomy_table)
+
 # Count the number of species for each phylum
-kingdom_species_count<- data.table:::setDT(species_data)[, .(count = data.table:::uniqueN(valid_name)), by = kingdom]
+kingdom_species_count<- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_name)), by = kingdom]
 
 kingdom_species_count
 
 # Plot
-taxa_groups_bar_kingdom <- ggplot(data = kingdom_species_count, aes(x= count, y = forcats::fct_rev(reorder(kingdom,kingdom)), fill = kingdom)) + 
-  geom_bar(stat = "identity")+
-  xlab("Number of species") + ylab("Kingdom")+
-  geom_text(aes(label=count), position=position_dodge(width=0.9), vjust=-0.25, hjust=-0.25)+
-  scale_fill_manual(values=c("skyblue3", "lightgreen", "grey30", "#96E6B3", "grey50", "#96E6B3", "grey50", "grey90"), name = "Kingdom")+
+taxa_groups_bar_kingdom <- ggplot(data = kingdom_species_count, aes(
+  x = count,
+  y = forcats::fct_rev(reorder(kingdom, kingdom)),
+  fill = kingdom
+)) +
+  geom_bar(stat = "identity") +
+  xlab("Number of species") + ylab("Kingdom") +
+  geom_text(
+    aes(label = count),
+    position = position_dodge(width = 0.9),
+    vjust = -0.25,
+    hjust = -0.25
+  ) +
+  scale_fill_manual(
+    values = c(
+      "skyblue3",
+      "lightgreen",
+      "grey30",
+      "#96E6B3",
+      "grey50",
+      "#96E6B3",
+      "grey50",
+      "grey90"
+    ),
+    name = "Kingdom"
+  ) +
   theme_classic()
 
 taxa_groups_bar_kingdom
+```
 
-ggsave(filename = "Figures/taxa_groups_bar_kingdom_98_curated.png", plot = taxa_groups_bar_kingdom,
-       device = "png", dpi = 300, units = "mm", height = 150, width = 250)
+```{r}
 
-### Phylum summary ----
+#| label: taxa-together-phylum
+
 # Count the number of species for each phylum
-phylum_species_count<- data.table:::setDT(species_data)[, .(count = data.table:::uniqueN(valid_name)), by = phylum]
+phylum_species_count<- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_name)), by = phylum]
 phylum_species_count
 
 #add kingdom for fill
-kingdom_phyla <- species_data %>%
+kingdom_phyla <- taxonomy_table %>%
   dplyr::select(kingdom, phylum)
 
 phylum_species_count <- na.omit(unique(left_join(phylum_species_count, kingdom_phyla)))
 
 # Plot
-taxa_groups_bar_phylum <- ggplot(data = phylum_species_count, aes(x= count, y = forcats::fct_rev(reorder(phylum,phylum)), fill = kingdom)) + 
-  geom_bar(stat = "identity")+
-  xlab("Number of species") + ylab("Phylum")+
-  geom_text(aes(label=count), position=position_dodge(width=0.9), vjust=0.3, hjust=-0.25)+
-  scale_fill_manual(values=c("skyblue3", "grey50", "lightgreen", "grey30", "#96E6B3", "grey20"))+
+taxa_groups_bar_phylum <- ggplot(data = phylum_species_count, aes(
+  x = count,
+  y = forcats::fct_rev(reorder(phylum, phylum)),
+  fill = kingdom
+)) +
+  geom_bar(stat = "identity") +
+  xlab("Number of species") + ylab("Phylum") +
+  geom_text(
+    aes(label = count),
+    position = position_dodge(width = 0.9),
+    vjust = 0.3,
+    hjust = -0.25
+  ) +
+  scale_fill_manual(values = c(
+    "skyblue3",
+    "grey50",
+    "lightgreen",
+    "grey30",
+    "#96E6B3",
+    "grey20"
+  )) +
   theme_classic()
 
 taxa_groups_bar_phylum
-
-ggsave(filename = "Figures/taxa_groups_bar_phylum_98_curated.png", plot = taxa_groups_bar_phylum,
-       device = "png", dpi = 300, units = "mm", height = 300, width = 250)
 ```
 
 ```{r}
-function_species_count<- data.table:::setDT(species_data)[, .(count = data.table:::uniqueN(valid_name)), by = .(adult, phylum, kingdom)]
-function_species_count
 
-#recode functional groups in for fill
-function_species_count$simple <-dplyr::recode(function_species_count$adult,
-                "zooplankton" = "Other",
-                "benthos" = "Macrobenthos",
-                "phytoplankton" = "Other",
-                "algae" = "Other",
-                "macrobenthos" = "Macrobenthos",
-                "macroalgae" = "Macroalgae",
-                "meiobenthos" = "Macrobenthos",
-                "mixoplankton" = "Other",
-                "nekton" = "Other",
-                "macroplankton" = 'Other',
-                "nanoplankton" = 'Other',
-                "epibenthos" = 'Macrobenthos',
-                "endobenthos" = 'Macrobenthos',
-                "microplankton" = 'Other',
-                "megabenthos" = 'Macrobenthos',
-                "mesoplankton" = 'Other',
-                "macro" = "Macrobenthos", #in the 'soil'
-                "plankton" = "Other",
-                "phytobenthos"= "Other")
+#| label: taxa-together-functional-group
 
-function_species_count <- function_species_count %>%
-  mutate(simple = ifelse(is.na(simple), "Not found", simple))
-
-function_species_count
-
-# Compute the total count per phylum
+#count number by functional group
+function_species_count <- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_name)), by = .(adult_simple, phylum, kingdom)] %>%
+  mutate(adult_simple = ifelse(is.na(adult_simple), "Not found", adult_simple))
 function_species_count$phylum = as.factor(function_species_count$phylum)
 
-# Group by phylum and simple, and summarize the total count
+head(function_species_count)
+
+# Group by phylum and adult_simple, and summarize the total count
 total_count <- function_species_count %>%
-  dplyr::group_by(phylum, simple) %>%  # Grouping by both phylum and simple
+  dplyr::group_by(phylum, adult_simple) %>%  # Grouping by both phylum and simple
   dplyr::summarise(total_count = sum(count, na.rm = TRUE), .groups = 'drop')  # Summarize total count
 
-total_count
+head(total_count)
 
 # Merge total counts with the original data
 function_species_count_reduced <- function_species_count %>% 
-  subset(select = c("phylum", "kingdom"))
-
-function_species_count_reduced <- function_species_count_reduced %>%
+  subset(select = c("phylum", "kingdom")) %>%
   distinct()
 
 function_species_count <- left_join(function_species_count_reduced, total_count, by = "phylum")
-function_species_count
 
+head(function_species_count)
+
+# order of taxa for the plot
 taxa_ordered <- c(
   "Porifera", 
   "Cnidaria", 
@@ -460,7 +482,7 @@ taxa_ordered <- c(
 )
 
 # Create the ggplot with custom color mapping
-taxa_groups_bar_phylum_functional <- ggplot(data = function_species_count, aes(x = total_count, y = phylum, fill = simple)) +
+taxa_groups_bar_phylum_functional <- ggplot(data = function_species_count, aes(x = total_count, y = phylum, fill = adult_simple)) +
   geom_bar(stat = "identity") +
   xlab("Number of unique taxa") +
   ylab("Phylum") +
@@ -488,16 +510,19 @@ taxa_groups_bar_phylum_functional <- ggplot(data = function_species_count, aes(x
 # Print the plot
 taxa_groups_bar_phylum_functional
 
+# save
 ggsave(filename = "Figures/taxa_groups_bar_phylum_98_curated_functional.png", plot = taxa_groups_bar_phylum_functional,
        device = "png", dpi = 300, units = "mm", height = 200, width = 300)
-
 ```
 
 ## Diversity analyses
 
+Let's set-up some variables for plotting.
+
 ```{r}
 
-# Set site and sample site orders for figures
+#| label: plotting-label-orders
+
 site_order <- c(
   "Scourie",
   "Rispond",
@@ -554,59 +579,66 @@ shore_height_order <- c("High", "Low", "Open Water")
 
 ### Rarefaction curves
 
+Scotland
+
 ```{r}
 
-#### Scotland ----
+#| label: rare-curve-sch
 
-#CO1
+# CO1
 SCH_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "Scotland" & primer == 'CO1')
 asv_abund_df_SCH_CO1 <- as.data.frame(t(phyloseq::otu_table(SCH_phylo_CO1)))
 raremax <- min(rowSums(asv_abund_df_SCH_CO1))
 raremax
 
-#Create tidy output
+# Create tidy output
 out_SCH_CO1 <- vegan::rarecurve(
   x = asv_abund_df_SCH_CO1,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
   sample = raremax)
 
-#Plot
+# Plot
 SCH_CO1_curve <- ggplot(data = out_SCH_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "#E5A361") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for Scotland CO1 samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
 
-#18S
+# 18S
 SCH_phylo_18S <- subset_samples(phylo_rocky_eDNA, country == "Scotland" & primer == '18S')
 asv_abund_df_SCH_18S <- as.data.frame(t(phyloseq::otu_table(SCH_phylo_18S)))
 raremax <- min(rowSums(asv_abund_df_SCH_18S))
 raremax
 
-#Create tidy output
+# Create tidy output
 out_SCH_18S <- vegan::rarecurve(
   x = asv_abund_df_SCH_18S,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
   sample = raremax)
 
-#Plot
+# Plot
 SCH_18S_curve <- ggplot(data = out_SCH_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "green3") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for Scotland 18S samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
+```
 
-#### South Wales ----
+South Wales
+
+```{r}
+
+#| label: rare-curve-sw
 
 #CO1
 SW_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "South Wales" & primer == 'CO1')
@@ -618,7 +650,7 @@ raremax
 out_SW_CO1 <- vegan::rarecurve(
   x = asv_abund_df_SW_CO1,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -627,7 +659,7 @@ out_SW_CO1 <- vegan::rarecurve(
 #Plot
 SW_CO1_curve <- ggplot(data = out_SW_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "#E5A361") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for South Wales CO1 samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
@@ -642,7 +674,7 @@ raremax
 out_SW_18S <- vegan::rarecurve(
   x = asv_abund_df_SW_18S,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -651,12 +683,17 @@ out_SW_18S <- vegan::rarecurve(
 #Plot
 SW_18S_curve <- ggplot(data = out_SW_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "green3") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for South Wales 18S samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
+```
 
-#### Cornwall ----
+Cornwall
+
+```{r}
+
+#| label: rare-curve-cn
 
 #CO1
 CN_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "Southwest England" & primer == 'CO1')
@@ -668,7 +705,7 @@ raremax
 out_CN_CO1 <- vegan::rarecurve(
   x = asv_abund_df_CN_CO1,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -677,7 +714,7 @@ out_CN_CO1 <- vegan::rarecurve(
 #Plot
 CN_CO1_curve <- ggplot(data = out_CN_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "#E5A361") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for Cornwall CO1 samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
@@ -692,7 +729,7 @@ raremax
 out_CN_18S <- vegan::rarecurve(
   x = asv_abund_df_CN_18S,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -701,12 +738,17 @@ out_CN_18S <- vegan::rarecurve(
 #Plot
 CN_18S_curve <- ggplot(data = out_CN_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "green3") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for Cornwall 18S samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
+```
 
-#### Northeast ----
+Northeast England
+
+```{r}
+
+#| label: rare-curve-ne
 
 #CO1
 NE_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "Northeast England" & primer == 'CO1')
@@ -718,7 +760,7 @@ raremax
 out_NE_CO1 <- vegan::rarecurve(
   x = asv_abund_df_NE_CO1,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -727,7 +769,7 @@ out_NE_CO1 <- vegan::rarecurve(
 #Plot
 NE_CO1_curve <- ggplot(data = out_NE_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "#E5A361") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for Northeast CO1 samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
@@ -742,7 +784,7 @@ raremax
 out_NE_18S <- vegan::rarecurve(
   x = asv_abund_df_NE_18S,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -751,12 +793,17 @@ out_NE_18S <- vegan::rarecurve(
 #Plot
 NE_18S_curve <- ggplot(data = out_NE_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "green3") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for Northeast 18S samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
+```
 
-#### North Wales ----
+North Wales
+
+```{r}
+
+#| label: rare-curve-nw
 
 #CO1
 NW_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "North Wales" & primer == 'CO1')
@@ -768,7 +815,7 @@ raremax
 out_NW_CO1 <- vegan::rarecurve(
   x = asv_abund_df_NW_CO1,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -777,7 +824,7 @@ out_NW_CO1 <- vegan::rarecurve(
 #Plot
 NW_CO1_curve <- ggplot(data = out_NW_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "#E5A361") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for North Wales CO1 samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
@@ -792,7 +839,7 @@ raremax
 out_NW_18S <- vegan::rarecurve(
   x = asv_abund_df_NW_18S,
   step = 20,
-  xlab = "Read depth", ylab = "ASVs",
+  xlab = "Read depth", ylab = "Taxa",
   lwd = 1,
   label = F,
   tidy = T,
@@ -801,10 +848,17 @@ out_NW_18S <- vegan::rarecurve(
 #Plot
 NW_18S_curve <- ggplot(data = out_NW_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
   geom_line(color = "green3") +
-  xlab("Read depth") + ylab("ASVs") +
+  xlab("Read depth") + ylab("Taxa") +
   #ggtitle("Rarefaction curve for North Wales 18S samples")+
   geom_vline(xintercept =raremax, linetype="dashed") +
   theme_classic()
+```
+
+Plot all together
+
+```{r}
+
+#| label: rare-curve-all
 
 curves_all <- cowplot::plot_grid(NW_18S_curve, 
           NW_CO1_curve,
@@ -825,9 +879,1138 @@ ggsave(filename = "Figures/rarefaction_curve_all.png", plot = curves_all,
 
 ### Alpha diversity
 
+We tested if alpha diversity differed across shore heights through a mixed modelling approach.
+
 ```{r}
+
+#| label: calculate-alpha
 
 alpha_df <- phyloseq::estimate_richness(physeq = phylo_rocky_eDNA, measure = c("Observed", "Shannon"))
 
 head(alpha_df)
+```
+
+```{r}
+
+#| label: add-data-alpha
+
+# Add diversity metrics to sample data
+diversity_meta <- cbind(meta_target, alpha_df)
+diversity_meta$shorePosition <- as.factor(diversity_meta$shorePosition)
+diversity_meta$verbatimLocality <- as.factor(diversity_meta$verbatimLocality)
+diversity_meta <- diversity_meta[!is.na(diversity_meta$shorePosition), ]
+diversity_meta <- diversity_meta[!is.na(diversity_meta$country), ]
+diversity_meta <- diversity_meta[!is.na(diversity_meta$verbatimLocality), ]
+diversity_meta <- diversity_meta[!is.na(diversity_meta$averageTemp), ]
+diversity_meta <- diversity_meta[!is.na(diversity_meta$averagePH), ]
+```
+
+#### Visualize data
+
+Let's check the distributions of the data.
+
+```{r}
+
+#| label: check-alpha-distributions
+
+#response
+histogram(sqrt(diversity_meta$Observed)) #normal
+histogram((diversity_meta$Shannon)) #fairly normal
+
+#predictors
+histogram(diversity_meta$averageTemp) #normal
+histogram(diversity_meta$averagePH) #normal
+```
+
+```{r}
+
+#| label: mean-temp-over-shore
+
+diversity_meta_summary <- diversity_meta %>% 
+  dplyr::group_by(shorePosition) %>% 
+  dplyr::summarise(mean = mean(averageTemp),
+                   SE = sd(averageTemp) / sqrt(n()))
+
+head(diversity_meta_summary) 
+
+ggplot(diversity_meta, aes(x = shorePosition, y = averageTemp)) + 
+  geom_boxplot()
+```
+
+```{r}
+
+#| label: visual-alpha-temp
+
+# richness vs temp
+diversity_temp_scatter <- ggplot(diversity_meta,
+                                 aes(x = averageTemp, y = Observed, colour = shorePosition)) +
+  geom_point() +
+  theme_classic()
+
+diversity_temp_scatter
+
+# shannon vs temp
+diversity_temp_scatter <- ggplot(diversity_meta, aes(x = averageTemp, y = Shannon)) +
+  geom_point() +
+  theme_classic()
+```
+
+```{r}
+
+#| label: visual-alpha-ph
+
+# richness vs pH
+diversity_pH_scatter <- ggplot(diversity_meta, aes(x = averagePH, y = Observed)) +
+  geom_point() +
+  theme_classic()
+
+diversity_pH_scatter #no pattern observed
+
+# shannon vs pH
+diversity_pH_scatter <- ggplot(diversity_meta, aes(x = averagePH, y = Shannon)) +
+  geom_point() +
+  theme_classic()
+
+diversity_pH_scatter #no pattern observed
+```
+
+#### Mixed models
+
+```{r}
+
+#| label: richness-mixed-model
+
+# construct model
+richness_mod <- lmer(
+  Observed ~ shorePosition +
+    averageTemp +
+    averagePH + (1 | country / verbatimLocality),
+  data = diversity_meta
+)
+
+#outputs
+summary(richness_mod)
+anova(richness_mod)
+
+# get p-values
+beta_hat <- fixef(richness_mod)  # Estimated coefficients
+se_beta <- sqrt(diag(vcov(richness_mod)))  # Standard errors of the coefficients
+t_values <- beta_hat / se_beta # Calculate Wald t-values manually
+p_values <- 2 * (1 - pnorm(abs(t_values)))  # Two-tailed test
+p_values
+```
+
+```{r}
+
+#| label: richness-mixed-model-assumptions
+
+plot(richness_mod) #good
+ranef(richness_mod)
+vif(richness_mod)
+qqnorm(resid(richness_mod))
+qqline(resid(richness_mod)) #tail but not too bad
+```
+
+```{r}
+
+#| label: richness-mixed-model-cal-variation
+
+# random variance
+121.64/(121.64 + 53.51 +  211.48) #31.7% for the nested random component
+
+# region alone
+46.67/(119.37 + 46.67 +  218.58) #12.1%
+```
+
+Let's do the same again for Shannon.
+
+```{r}
+
+#| label: shannon-mixed-model
+
+# build model
+shannon_mod <- lmer(
+  Shannon ~ shorePosition +
+    averageTemp +
+    averagePH + (1 | country / verbatimLocality),
+  data = diversity_meta
+)
+
+# outputs
+summary(shannon_mod)
+anova(shannon_mod)
+
+# get p-values
+beta_hat <- fixef(shannon_mod)  # Estimated coefficients
+se_beta <- sqrt(diag(vcov(shannon_mod)))  # Standard errors of the coefficients
+t_values <- beta_hat / se_beta # Calculate Wald t-values manually
+p_values <- 2 * (1 - pnorm(abs(t_values)))  # Two-tailed test
+p_values
+```
+
+```{r}
+
+#| label: shannon-mixed-model-assumptions
+
+plot(shannon_mod) #good
+ranef(shannon_mod)
+vif(shannon_mod)
+qqnorm(resid(shannon_mod))
+qqline(resid(shannon_mod)) #tail but not too bad
+```
+
+```{r}
+
+#| label: shannon-mixed-model-cal-variation
+
+# check random variance
+0.06583/(0.058467 + 0 +  0.44037)*100 #13.1967% for the nested random component
+
+# region alone
+0.03528/(0.02608 + 0.03528 +  0.45212)*100 #6.87%
+```
+
+#### Planned contrasts
+
+```{r}
+
+#| label: set-contrast-levels
+
+Open = c(0, 0, 1)
+Low = c(0, 1, 0)
+High= c(1, 0, 0)
+Low_and_high = (Low + High)/2
+```
+
+```{r}
+
+#| label: contrast-richness
+
+emms_richness <- emmeans::emmeans(richness_mod, ~ shorePosition)
+emms_richness
+
+contrast_richness_1 <- contrast(emms_richness, method = list("High - Low" = High - Low))
+contrast_richness_2 <- contrast(emms_richness, method = list("High - Other" = Low_and_high - Open))
+
+contrast_richness_1 
+contrast_richness_2
+
+# Get confidence intervals for richness contrasts
+confint(contrast_richness_1)
+confint(contrast_richness_2)
+```
+
+```{r}
+
+#| label: contrast-shannon
+
+emms_shannon <- emmeans::emmeans(shannon_mod, ~ shorePosition)
+emms_shannon
+
+contrast_shannon_1 <- contrast(emms_shannon, method = list("High - Low" = High - Low))
+contrast_shannon_2 <- contrast(emms_shannon, method = list("High - Other" = Low_and_high - Open))
+
+contrast_shannon_1
+contrast_shannon_2
+
+# Get confidence intervals for Shannon contrasts
+confint(contrast_shannon_1)
+confint(contrast_shannon_2)
+```
+
+#### Plots
+
+```{r}
+
+#| label: richness-shore-height-boxplot
+
+rich_shore <- ggplot(aes(shorePosition, Observed, fill = shorePosition), data = diversity_meta) +
+  geom_boxplot() +
+  #facet_wrap(~ country) + # create a facet for each mountain range
+  xlab("Shore height") +
+  ylab("Richness") +
+  scale_fill_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    'Open Water' = 'grey80'
+  )) +
+  #geom_signif(comparisons = list(c("High", "Low")),
+  #map_signif_level = TRUE, , tip_length = 0,
+  #annotation = "***")+
+  #geom_signif(comparisons = list(c("High", "Open Water")),
+  #map_signif_level = TRUE, tip_length = 0, y_position = 124,
+  #annotation = "***") +
+  ylim(0, 140) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+rich_shore 
+```
+
+```{r}
+
+#| label: shannon-shore-height-boxplot
+
+shannon_shore <- ggplot(aes(shorePosition, Shannon, fill = shorePosition), data = diversity_meta) +
+  geom_boxplot() +
+  #facet_wrap(~ country) + # create a facet for each mountain range
+  xlab("Shore height") +
+  ylab("Shannon Diversity Index") +
+  #geom_signif(comparisons = list(c("High", "Low")),
+  #map_signif_level = TRUE, , tip_length = 0,
+  #annotation = "NS")+
+  #eom_signif(comparisons = list(c("High", "Open Water")),
+  #map_signif_level = TRUE, tip_length = 0, y_position = 4.05,
+  #annotation = "***") +
+  ylim(0, 4.5) +
+  scale_fill_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    'Open Water' = 'grey80'
+  )) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+shannon_shore
+```
+
+```{r}
+
+#| label: richness-temp-scatter-pred
+
+# Extract the prediction data frame
+pred.temp.rich <- ggpredict(richness_mod, terms = c("averageTemp", "country")) 
+
+# plot
+richness_temp<- ggplot(pred.temp.rich) + 
+  geom_point(data = diversity_meta, aes(x = averageTemp, y = Observed), size = 1.8, alpha = 0.5) + 
+    geom_line(aes(x = x, y = predicted), colour = "blue4") +          # slope
+    geom_ribbon(aes(x = x, ymin = predicted - std.error, ymax = predicted + std.error), 
+                fill = "lightblue3", alpha = 0.5) +  # error band
+  #scale_colour_manual(values = c("Scotland" = "darkseagreen3",
+                                 #"North Wales" = "lightpink3",
+                                 #"Northeast England" = "yellow3",
+                                 #"South Wales" = "lightblue",
+                                 #"Southwest England" = "purple3"))+
+  xlab("Temperature (°C)") + 
+  ylab("Richness")+
+  xlim(10,25)+
+  labs(colour = "Region")+
+  theme_classic()+
+  theme(legend.position = "none")
+
+richness_temp
+```
+
+```{r}
+
+#| label: shannon-temp-scatter-pred
+
+# Extract the prediction data frame
+pred.temp.shannon <- ggpredict(shannon_mod, terms = c("averageTemp", "country"))
+
+# plot
+shannon_temp<- ggplot(pred.temp.shannon) + 
+  geom_point(data = diversity_meta, aes(x = averageTemp, y = Shannon), size = 1.8, alpha = 0.5) +
+  geom_line(aes(x = x, y = predicted), colour = "blue4") +          # slope
+  geom_ribbon(aes(x = x, ymin = predicted - std.error, ymax = predicted + std.error), 
+              fill = "lightblue3", alpha = 0.5) +  # error band
+  #scale_colour_manual(values = c("Scotland" = "darkseagreen3",
+                                 #"North Wales" = "lightpink3",
+                                 #"Northeast England" = "yellow3",
+                                 #"South Wales" = "lightblue",
+                                 #"Southwest England" = "purple3"))+
+  xlab("Temperature (°C)") + 
+  ylab("Shannon Diversity Index")+
+  xlim(10,26)+
+  labs(colour = "Region")+
+  theme_classic() +
+  theme(legend.position = "none")
+
+shannon_temp 
+```
+
+```{r}
+
+#| label: alpha-figure-final-plot
+
+alpha_plot_all <- plot_grid(rich_shore, richness_temp, shannon_shore, shannon_temp, labels = c("a", "b", "c", "d"), ncol = 2, align = "v")
+
+alpha_plot_all
+
+#save
+ggsave(filename = "Figures/alpha_plot_all.png", plot = alpha_plot_all ,
+       device = "png", dpi = 300, units = "mm", height = 200, width = 230)
+```
+
+### Beta diversity
+
+```{r}
+
+#| label: beta-data-set-up
+
+# filter out any NAs for variables of interest
+physeq_beta <- ps_filter(phylo_rocky_eDNA, shorePosition != "NA")
+physeq_beta <- ps_filter(physeq_beta, country != "NA")
+physeq_beta <- prune_samples(sample_sums(physeq_beta) > 0, physeq_beta)
+
+# convert to P/A
+physeq_beta_PA <- microbiome::transform(physeq_beta,"pa")
+
+# split by gene
+pseq_CO1_pruned <- ps_filter(physeq_beta_PA, primer == "CO1")
+pseq_18S_pruned <- ps_filter(physeq_beta_PA, primer == "18S")
+```
+
+#### NMDS plots
+
+```{r}
+
+#| label: calculate-nmds-jaccard-co1
+
+ord.nmds.jaccard.CO1 <- ordinate(pseq_CO1_pruned, method = "NMDS", distance =
+                                   "jaccard")
+
+stress_value_jaccard_CO1 <- ord.nmds.jaccard.CO1$stress
+```
+
+```{r}
+
+#| label: calculate-nmds-jaccard-18s
+
+ord.nmds.jaccard.18S <- ordinate(pseq_18S_pruned, method = "NMDS", distance =
+                                   "jaccard")
+stress_value_jaccard_18S <- ord.nmds.jaccard.18S$stress
+```
+
+```{r}
+
+#| label: nmds-region-jaccard-co1
+
+NMDS_region_CO1_jaccard <- plot_ordination(pseq_CO1_pruned, ord.nmds.jaccard.CO1, color="country")+
+  scale_colour_manual(values = c("Scotland" = "darkseagreen",
+                                 "North Wales" = "lightpink3",
+                                 "Northeast England" = "yellow3",
+                                 "South Wales" = "lightblue",
+                                 "Southwest England" = "mediumpurple")) +
+  theme_classic()+ 
+  #theme(legend.position = "none")+ 
+  annotate("text", x = Inf, y = Inf, label = paste("Stress =", round(stress_value_jaccard_CO1, 3)), 
+           size = 4, hjust = 1.1, vjust = 1.5)+
+  #stat_ellipse(aes(group = interaction(country, shorePosition)), type = "t", level = 0.95, linetype = 1, size = 0.5)+
+  stat_ellipse(aes(group = country), type = "t", level = 0.95, linetype = 1, size = 0.5)+
+  #annotate("text", x = -0.6, y = 0.6, label = paste("CO1"), 
+           #size = 4)+
+  labs(color = "Region") +
+  theme(legend.position = "bottom") +
+  theme(legend.position = "none")+ 
+  guides(colour = guide_legend(nrow = 2, byrow = TRUE)) 
+
+NMDS_region_CO1_jaccard
+```
+
+```{r}
+
+#| label: nmds-region-jaccard-18S
+
+NMDS_region_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S, color="country")+
+  scale_colour_manual(values = c("Scotland" = "darkseagreen",
+                                 "North Wales" = "lightpink3",
+                                 "Northeast England" = "yellow3",
+                                 "South Wales" = "lightblue",
+                                 "Southwest England" = "mediumpurple")) +
+  theme_classic()+
+  theme(legend.position = "none")+ 
+  annotate("text", x = Inf, y = Inf, label = paste("Stress =", round(stress_value_jaccard_18S, 3)), 
+           size = 4, hjust = 1.1, vjust = 1.5)+
+  stat_ellipse(aes(group = country), type = "t", linetype = 1, size = 0.5)+
+  #annotate("text", x = -1.1, y = 0.9, label = paste("18S"), 
+           #size = 4)+
+  xlim(-1.1,1.1)+ #to remove weird outlier
+  labs(color = "Region") 
+
+
+NMDS_region_18S_jaccard
+```
+
+```{r}
+
+#| label: nmds-shore-height-jaccard-co1
+
+NMDS_type_CO1_jaccard<- plot_ordination(pseq_CO1_pruned, ord.nmds.jaccard.CO1, color="shorePosition") +
+  scale_colour_manual(values = c("Low" = "lightblue4", 
+                               "High" = "lightblue3",
+                               'Open Water' = 'grey70')) +
+  theme_classic()+
+  #theme(legend.position = "none")+ 
+  annotate("text", x = Inf, y = Inf, label = paste("Stress =", round(stress_value_jaccard_CO1, 3)), 
+           size = 4, hjust = 1.1, vjust = 1.5)+
+  stat_ellipse(aes(group = shorePosition), type = "t", linetype = 1, size = 0.5)+
+  #annotate("text", x = -0.6, y = 0.6, label = paste("CO1"), 
+           #size = 4)+
+  labs(color = "Shore position") +
+  theme(legend.position = "none") +
+  guides(colour = guide_legend(nrow = 1, byrow = TRUE)) 
+
+NMDS_type_CO1_jaccard
+```
+
+```{r}
+
+#| label: nmds-shore-height-jaccard-18s
+
+NMDS_type_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S, color="shorePosition") +
+  scale_colour_manual(values = c("Low" = "lightblue4", 
+                                 "High" = "lightblue3",
+                                 'Open Water' = 'grey70')) +
+  theme_classic()+
+  theme(legend.position = "none")+ 
+  annotate("text", x = Inf, y = Inf, label = paste("Stress =", round(stress_value_jaccard_18S, 3)), 
+           size = 4, hjust = 1.1, vjust = 1.5)+
+  stat_ellipse(aes(group = shorePosition), type = "t", linetype = 1, size = 0.5)+
+  #annotate("text", x = -1.1, y = 1, label = paste("18S"), 
+           #size = 4)+
+  xlim(-1.1, 1)+
+  labs(color = "Shore position")
+
+NMDS_type_18S_jaccard
+```
+
+```{r}
+
+#| label: nmds-all-plot-export
+
+NMDS_jaccard_all<- cowplot::plot_grid(NMDS_region_18S_jaccard, NMDS_type_18S_jaccard,NMDS_region_CO1_jaccard, NMDS_type_CO1_jaccard, labels = c("a", "b", "c", "d"), ncol = 2, align = "hv")
+
+NMDS_jaccard_all
+
+ggsave("Figures/NMDS_jaccard_all.png", NMDS_jaccard_all, units = "mm", width = 240, height = 240)
+```
+
+#### Pairwise dissimilarity boxplots
+
+```{r}
+
+#| label: jaccard-matrix-co1
+
+jaccard_dist_CO1 <- phyloseq::distance(pseq_CO1_pruned, method="jaccard")
+
+# format matrix to long
+jaccard_dist_CO1_mat <- as.matrix(jaccard_dist_CO1)
+longData_CO1<-melt(jaccard_dist_CO1_mat)
+longData_CO1<-longData_CO1[longData_CO1$value!=0,]
+```
+
+```{r}
+
+#| label: subset-meta-co1
+
+metadf <- data.frame(sample_data(pseq_CO1_pruned))
+metadf_shore <- metadf %>% subset(select = c("fullID", "verbatimLocality", "shorePosition", "country"))
+```
+
+```{r}
+
+#| label: format-data-for-comparisons-CO1
+
+# Join longData_CO1 with metadf_shore to get Var1_position
+longData_CO1 <- longData_CO1 %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var1_position = shorePosition),
+    by = c("Var1" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_CO1 <- longData_CO1 %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var2_position = shorePosition),
+    by = c("Var2" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_CO1 <- longData_CO1 %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var1_site = verbatimLocality),
+    by = c("Var1" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_CO1 <- longData_CO1 %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var2_site = verbatimLocality),
+    by = c("Var2" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_CO1 <- longData_CO1 %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var1_country = country),
+    by = c("Var1" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_CO1 <- longData_CO1 %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var2_country = country),
+    by = c("Var2" = "fullID")
+  )
+
+# Create the comparison variable
+longData_CO1 <- longData_CO1 %>%
+  mutate(
+    # Create a consistent comparison column by sorting positions
+    comparison = pmap_chr(list(Var1_position, Var2_position), function(v1, v2) {
+      if (v1 == v2) {
+        "Within shore position"
+      } else {
+        sorted <- sort(c(v1, v2)) # Sort the positions
+        paste(sorted, collapse = "") # Concatenate the sorted positions
+      }
+    }),
+    sameSite = Var1_site == Var2_site,
+    samePosition = Var1_position == Var2_position
+  )
+
+longData_CO1$comparison[longData_CO1$comparison == "HighOpen Water"] = "HighOpenWater"
+longData_CO1$comparison[longData_CO1$comparison == "LowOpen Water"] = "LowOpenWater"
+longData_CO1_samesites <- longData_CO1 %>% filter(sameSite == TRUE)
+```
+
+```{r}
+
+#| label: summarise-data-for-comparisons-CO1
+
+# Plotting the boxplot using ggplot2
+standard_error <- function(x) {
+  sd(x, na.rm = TRUE) / sqrt(length(x))
+}
+
+which(longData_CO1_samesites$Var1_site != longData_CO1_samesites$Var2_site)
+
+# Calculate the averages for each group site
+averages <- longData_CO1_samesites %>%
+  dplyr::group_by(comparison, Var1_site) %>%
+  dplyr::summarise(mean_value = mean(value, na.rm = TRUE), .groups = 'drop',
+                   standard_error = standard_error(value))
+
+averages
+
+# Calculate the averages for each group region
+averages_regions <- longData_CO1_samesites %>%
+  dplyr::group_by(comparison, Var1_country) %>%
+  dplyr::summarise(mean_value = mean(value, na.rm = TRUE), .groups = 'drop',
+                   standard_error = standard_error(value))
+
+averages_regions
+
+# Define the four unique comparisons you're interested in
+required_comparisons <- c("HighOpenWater",
+                          "HighLow",
+                          "LowOpenWater",
+                          "Within shore position")
+
+# Filter the sites that have all required comparisons
+filtered_sites <- longData_CO1_samesites %>%
+  dplyr::group_by(Var1_site) %>%
+  dplyr::filter(all(required_comparisons %in% comparison)) %>%
+  dplyr::ungroup()
+```
+
+```{r}
+
+#| label: label-variables-diss-comparisons
+
+comparison_order <- c("High vs Open Water",
+                      "High vs Low",
+                      "Low vs Open Water",
+                      "Same shore position")
+
+site_order_reduced <- c(
+  "Scourie",
+  "Skerray",
+  "Murkle Bay",
+  "Wick", #Scotland
+  "Porth Swtan",
+  "Rhosneigr",#North Wales
+  "Castlehead Rocks",
+  "Filey Brigg",
+  "Newton Point",
+  "Rumbling Kern",
+  "Scalby Mills",#Northumbria
+  "Aberystwyth",
+  "Broad Haven",
+  "West Angle",#South Wales
+  "Lizard Point",
+  "Looe",
+  "Sennen Cove",
+  "St Ives",
+  "Trevone" #Cornwall
+) 
+
+# Reorder the factor levels for the comparison variable
+filtered_sites$comparison <- factor(
+  filtered_sites$comparison,
+  levels = c(
+    "HighOpenWater",
+    "HighLow",
+    "LowOpenWater",
+    "Within shore position"
+  )
+)
+```
+
+```{r}
+
+#| label: plot-jaccard-comparisons-regions-co1
+
+compare_jaccard_regions <- ggplot(filtered_sites, aes(x = Var1_country, y = value, fill = comparison, colour = comparison)) +
+  geom_boxplot(alpha = 0.5) +
+  #geom_point(position = position_jitterdodge(dodge.width = .5), alpha = 0.2) +
+  #geom_text(data = averages, aes(x = Var1_site, y = mean_value, label = round(mean_value, 2)),
+  #vjust = -1.8, color = "black", size = 3.5, position = position_dodge(width = 0.75)) +
+  labs(x = "Region",
+       y = "Jaccard Dissimilarity (COI)") +
+  scale_fill_manual(values = c("HighLow" = "#7DCE82", 
+                               "Within shore position" = "grey50",
+                               "LowOpenWater" = "#FF8811",
+                               "HighOpenWater" = "#5998C5"), 
+                    labels = c("HighLow" = "High vs Low", 
+                               "HighOpenWater" = "High vs Open Water",
+                               "LowOpenWater" = "Low vs Open Water",
+                               "Within shore position" = "Same shore height"),
+                    name = "Shore Height Comparison") +
+  scale_colour_manual(values = c("HighLow" = "green4", 
+                                 "Within shore position" = "grey30",
+                                 "LowOpenWater" = "orange3",
+                                 "HighOpenWater" = "skyblue4"),
+                      labels = c("HighLow" = "High vs Low", 
+                                 "HighOpenWater" = "High vs Open Water",
+                                 "LowOpenWater" = "Low vs Open Water",
+                                 "Within shore position" = "Same shore height"),
+                      name = "Shore Height Comparison")+
+  theme_classic() +
+  scale_x_discrete(limits = country_order) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = 'none') + # Remove x-axis title)
+scale_y_continuous(labels = scales::number_format(accuracy = 0.1))
+
+compare_jaccard_regions 
+```
+
+Same again for 18S.
+
+```{r}
+
+#| label: jaccard-matrix-18S
+
+#Produce distance matrix
+jaccard_dist_18S <- phyloseq::distance(pseq_18S_pruned, method="jaccard")
+
+#subset meta data for shore heights
+metadf <- data.frame(sample_data(pseq_18S_pruned))
+metadf_shore <- metadf %>% subset(select = c("fullID", "verbatimLocality", "shorePosition", "country"))
+
+# format matrix to long
+jaccard_dist_18S_mat <- as.matrix(jaccard_dist_18S)
+longData_18S<-melt(jaccard_dist_18S_mat)
+longData_18S<-longData_18S[longData_18S$value!=0,]
+```
+
+```{r}
+
+#| label: format-data-for-comparisons-18s
+
+# Join longData_CO1 with metadf_shore to get Var1_position
+longData_18S <- longData_18S %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var1_position = shorePosition),
+    by = c("Var1" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_18S <- longData_18S %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var2_position = shorePosition),
+    by = c("Var2" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_18S <- longData_18S %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var1_site = verbatimLocality),
+    by = c("Var1" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_18S <- longData_18S %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var2_site = verbatimLocality),
+    by = c("Var2" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_18S <- longData_18S %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var1_country = country),
+    by = c("Var1" = "fullID")
+  )
+
+# Join longData_CO1 with metadf_shore again to get Var2_position
+longData_18S <- longData_18S %>%
+  left_join(
+    metadf_shore %>% 
+      dplyr::select(fullID, Var2_country = country),
+    by = c("Var2" = "fullID")
+  )
+
+# Create the comparison variable
+longData_18S <- longData_18S %>%
+  mutate(
+    # Create a consistent comparison column by sorting positions
+    comparison = pmap_chr(list(Var1_position, Var2_position), function(v1, v2) {
+      if (v1 == v2) {
+        "Within shore position"
+      } else {
+        sorted <- sort(c(v1, v2)) # Sort the positions
+        paste(sorted, collapse = "") # Concatenate the sorted positions
+      }
+    }),
+    sameSite = Var1_site == Var2_site,
+    samePosition = Var1_position == Var2_position
+  )
+
+longData_18S$comparison[longData_18S$comparison == "HighOpen Water"] = "HighOpenWater"
+longData_18S$comparison[longData_18S$comparison == "LowOpen Water"] = "LowOpenWater"
+
+longData_18S_samesites <- longData_18S %>% filter(sameSite == TRUE)
+
+which(longData_18S_samesites$Var1_site != longData_18S_samesites$Var2_site)
+```
+
+```{r}
+
+#| label: summarise-data-for-comparisons-18s
+
+# Calculate the averages for each group
+averages <- longData_18S_samesites %>%
+  dplyr::group_by(comparison, Var1_site) %>%
+  dplyr::summarise(
+    mean_value = mean(value, na.rm = TRUE),
+    .groups = 'drop',
+    standard_error = standard_error(value)
+  )
+
+averages
+
+# Calculate the averages for each group
+averages_regions <- longData_18S_samesites %>%
+  dplyr::group_by(comparison, Var1_country) %>%
+  dplyr::summarise(
+    mean_value = mean(value, na.rm = TRUE),
+    .groups = 'drop',
+    standard_error = standard_error(value)
+  )
+
+averages_regions
+
+# Filter the sites that have all required comparisons
+filtered_sites_18S <- longData_18S_samesites %>%
+  group_by(Var1_site) %>%
+  dplyr::filter(all(required_comparisons %in% comparison)) %>%
+  ungroup()
+
+# Reorder the factor levels for the comparison variable
+filtered_sites_18S$comparison <- factor(
+  filtered_sites_18S$comparison,
+  levels = c(
+    "HighOpenWater",
+    "HighLow",
+    "LowOpenWater",
+    "Within shore position"
+  )
+)
+```
+
+```{r}
+
+#| label: plot-jaccard-comparisons-regions-18S
+
+compare_jaccard_regions_18S <- ggplot(filtered_sites_18S, aes(x = Var1_country, y = value, colour = comparison, fill = comparison)) +
+  geom_boxplot(alpha = 0.5) +
+  #geom_point(position = position_jitterdodge(dodge.width = .5), alpha = 0.2) +
+  #geom_text(data = averages, aes(x = Var1_site, y = mean_value, label = round(mean_value, 2)),
+  #vjust = -1.8, color = "black", size = 3.5, position = position_dodge(width = 0.75)) +
+  labs(x = "",
+       y = "Jaccard Dissimilarity (18S)") +
+  scale_fill_manual(values = c("HighLow" = "#7DCE82", 
+                               "Within shore position" = "grey50",
+                               "LowOpenWater" = "#FF8811",
+                               "HighOpenWater" = "#5998C5"), 
+                    labels = c("HighLow" = "High vs Low", 
+                               "HighOpenWater" = "High vs Open Water",
+                               "LowOpenWater" = "Low vs Open Water",
+                               "Within shore position" = "Same shore height"),
+                    name = "Shore Height Comparison") +
+  scale_colour_manual(values = c("HighLow" = "green4", 
+                                 "Within shore position" = "grey30",
+                                 "LowOpenWater" = "orange3",
+                                 "HighOpenWater" = "skyblue4"),
+                      labels = c("HighLow" = "High vs Low", 
+                                 "HighOpenWater" = "High vs Open Water",
+                                 "LowOpenWater" = "Low vs Open Water",
+                                 "Within shore position" = "Same shore height"),
+                      name = "Shore Height Comparison")+
+  theme_classic() +
+  scale_x_discrete(limits = country_order) +
+  theme(axis.text.x = element_blank(),
+        legend.position = "none")   +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.1))
+
+compare_jaccard_regions_18S
+```
+
+```{r}
+
+#| label: get-legend-for-plot
+
+compare_jaccard <- ggplot(filtered_sites, aes(x = Var1_site, y = value, fill = comparison, colour = comparison)) +
+  geom_boxplot(alpha = 0.5) +
+  #geom_text(data = averages, aes(x = Var1_site, y = mean_value, label = round(mean_value, 2)),
+            #vjust = -1.8, color = "black", size = 3.5, position = position_dodge(width = 0.75)) +
+  labs(x = "Sites",
+       y = "") +
+  scale_fill_manual(values = c("HighLow" = "#7DCE82", 
+                               "Within shore position" = "grey50",
+                               "LowOpenWater" = "#FF8811",
+                               "HighOpenWater" = "#5998C5"), 
+                    labels = c("HighLow" = "High vs Low", 
+                               "HighOpenWater" = "High vs Open Water",
+                               "LowOpenWater" = "Low vs Open Water",
+                               "Within shore position" = "Same shore height"),
+                    name = "Shore height comparison") +
+  scale_colour_manual(values = c("HighLow" = "green4", 
+                                 "Within shore position" = "grey30",
+                                 "LowOpenWater" = "orange3",
+                                 "HighOpenWater" = "skyblue4"),
+                      labels = c("HighLow" = "High vs Low", 
+                                 "HighOpenWater" = "High vs Open Water",
+                                 "LowOpenWater" = "Low vs Open Water",
+                                 "Within shore position" = "Same shore height"),
+                      name = "Shore height comparison")+
+  theme_classic() +
+  scale_x_discrete(limits = site_order_reduced) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  guides(colour = guide_legend(nrow = 1, byrow = TRUE)) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.1))
+
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+}
+
+legend <- g_legend(compare_jaccard)
+```
+
+```{r}
+
+#| label: plot-jaccard-comparisons-region-all
+
+region_jaccard <- cowplot::plot_grid(
+  cowplot::plot_grid(compare_jaccard_regions_18S, compare_jaccard_regions, ncol = 1, labels = c("a", "b"), rel_heights = c(0.8, 1)), legend, ncol =1, rel_heights = c(1, 0.06))
+
+region_jaccard 
+
+ggsave(filename = "Figures/compare_jaccard_regionsonly_bothprimers.png", plot = region_jaccard ,
+       device = "png", dpi = 300, units = "mm", height = 190, width = 200)
+```
+
+### Ecological concordance
+
+```{r}
+
+#| label: define-marclim-genera
+
+Marclim_genera_list <- c(
+  "Actinia",
+  "Alaria",
+  "Anemonia",
+  "Ascophyllum",
+  "Asparagopsis",
+  "Asterias",
+  "Asterocarpa",
+  "Aulactinia",
+  "Austrominius",
+  "Balanus",
+  "Bifurcaria",
+  "Botrylloides",
+  "Calliblepharis",
+  "Calliostoma",
+  "Caulacanthus",
+  "Chondracanthus",
+  "Chondrus",
+  "Chthamalus",
+  "Clibanarius",
+  "Codium",
+  "Colpomenia",
+  "Corella",
+  "Crepidula",
+  "Dasysiphonia",
+  "Dendrodoa",
+  "Diadumene",
+  "Dictyopteris",
+  "Didemnum",
+  "Ericaria",
+  "Fucus",
+  "Grateloupia",
+  "Halichondria",
+  "Halidrys",
+  "Haliotis",
+  "Hemigraphsus",
+  "Hemigraspus",
+  "Himanthalia",
+  "Hymeniacidon",
+  "Laminaria",
+  "Leptasterias",
+  "Lichina",
+  "Littorina",
+  "Magallana",
+  "Mastocarpus",
+  "Melarhaphe",
+  "Mytilus",
+  "Nucella",
+  "Ocenebra",
+  "Ocinebrellus",
+  "Onchidella",
+  "Padina",
+  "Palmaria",
+  "Paracentrotus",
+  "Patella",
+  "Pelvetia",
+  "Perforatus",
+  "Perophora",
+  "Phorcus",
+  "Pikea",
+  "Pollicipes",
+  "Sabellaria",
+  "Saccharina",
+  "Saccorhiza",
+  "Sargassum",
+  "Semibalanus",
+  "Steromphala",
+  "Strongylocentrotus",
+  "Testudinalia",
+  "Treptacantha",
+  "Undaria",
+  "Urosalpinx",
+  "Watersipora"
+)
+```
+
+```{r}
+
+#| label: marclim-taxa-shore-height-figures
+
+for (i in Marclim_genera_list) {
+  tryCatch({
+    # Subset the taxa for the current genus
+    taxa <- subset_taxa(phylo_rocky_eDNA, genus == i)
+    
+    # Check if there are any taxa after subsetting
+    if (ntaxa(taxa) == 0) {
+      stop(paste("No taxa found for genus:", i))  # Manually trigger an error if no taxa are found
+    }
+    
+    # Generate the bar plot for the current genus
+    p <- plot_bar(taxa, "shorePosition", fill = "valid_name", title = paste(i, "across samples")) + 
+      labs(y = "Read count", x = "Shore Height") +
+      theme_classic()
+    p
+    
+    # Save the plot to the folder
+    plot_file_path <- paste0("Figures/Marclim_Shoreheights/", i, "_shoreposition.png")
+    ggsave(filename = plot_file_path, plot = p, width = 8, height = 6, dpi = 300)  # Adjust size as needed
+    
+  }, error = function(e) {
+    # Handle the error: print a message and skip to the next genus
+    message(paste("Error with genus:", i, " - ", e$message))
+  })
+}
+
+```
+
+```{r}
+
+#| label: marclim-taxa-regions-figures
+
+for (i in Marclim_genera_list) {
+  tryCatch({
+    # Subset the taxa for the current genus
+    taxa <- subset_taxa(phylo_rocky_eDNA, genus == i)
+    
+    # Check if there are any taxa after subsetting
+    if (ntaxa(taxa) == 0) {
+      stop(paste("No taxa found for genus:", i))  # Manually trigger an error if no taxa are found
+    }
+    
+    # Generate the bar plot for the current genus
+    p <- plot_bar(taxa, "country", fill = "valid_name", title = paste(i, "across regions")) + 
+      labs(y = "Read count", x = "Shore Height") +
+      theme_classic()
+    p
+    
+    # Save the plot to the folder
+    plot_file_path <- paste0("Figures/Marclim_Regions/", i, "_regions.png")
+    ggsave(filename = plot_file_path, plot = p, width = 11, height = 9, dpi = 300)  # Adjust size as needed
+    
+  }, error = function(e) {
+    # Handle the error: print a message and skip to the next genus
+    message(paste("Error with genus:", i, " - ", e$message))
+  })
+}
+```
+
+```{r}
+
+#| label: marclim-taxa-sites-figures
+
+for (i in Marclim_genera_list) {
+  tryCatch({
+    # Subset the taxa for the current genus
+    taxa <- subset_taxa(phylo_rocky_eDNA, genus == i)
+    
+    # Check if there are any taxa after subsetting
+    if (ntaxa(taxa) == 0) {
+      stop(paste("No taxa found for genus:", i))  # Manually trigger an error if no taxa are found
+    }
+    
+    # Generate the bar plot for the current genus
+    p <- plot_bar(taxa, "verbatimLocality ", fill = "valid_name", title = paste(i, "across sites")) + 
+      labs(y = "Read count", x = "Shore Height") +
+      theme_classic() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    p
+    
+    # Save the plot to the folder
+    plot_file_path <- paste0("Figures/Marclim_Sites/", i, "_sites.png")
+    ggsave(filename = plot_file_path, plot = p, width = 11, height = 9, dpi = 300)  # Adjust size as needed
+    
+  }, error = function(e) {
+    # Handle the error: print a message and skip to the next genus
+    message(paste("Error with genus:", i, " - ", e$message))
+  })
+}
+
 ```
