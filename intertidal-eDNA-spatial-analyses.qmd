@@ -1,0 +1,833 @@
+---
+title: "Characterising rocky intertidal biodiversity using environmental DNA metabarcoding from local to national scales"
+format: html
+embed-resources: true
+editor: visual
+author: Simons D-L, Hipperson H, Webb TJ, Spencer M, Mieszkowska N
+chunk_output_type: inline
+toc: true
+message: false
+warning: false
+---
+
+```{r}
+#| label: load-packages
+#| echo: true
+#| results: false
+
+packages <- c("devtools",
+              "qiime2R", #github download
+              "microbiome", #github download
+              "tidyverse",
+              "vegan",
+              "ggforce",
+              "phyloseq",
+              "ANCOMBC",
+              "DT",
+              "ranacapa", #for ggrare
+              "plyr",
+              "reshape2",
+              "patchwork",
+              "microViz",
+              "microeco",
+              "eulerr",
+              "microbiomeutilities",
+              "ComplexHeatmap",
+              "ggtreeExtra", #github
+              "taxize",
+              "mgcv",
+              "indicspecies",
+              "cowplot",
+              "geosphere",
+              "MiscMetabar",
+              "ggVennDiagram")
+
+new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+## Importing data and tidying
+
+Let's load our phyloseq object and long data, which have already been decontaminated, filtered for target taxa, and checked for quality control through [this pipeline](https://github.com/dinaleighsimons/intertidal-eDNA-formatting-and-quality-control).
+
+```{r}
+
+#| label: load-data
+
+load("Input_Data/phylo_rocky_eDNA.RData")
+phylo_rocky_eDNA_long <- read.csv("Input_data/phylo_rocky_eDNA_long.csv")
+```
+
+Let's separate data sets for each primer.
+
+```{r}
+
+#| label: split-data-by-primer
+
+phylo_rocky_eDNA_CO1 <- ps_filter(phylo_rocky_eDNA, primer == "CO1")
+phylo_rocky_eDNA_CO1
+
+phylo_rocky_eDNA_18S <- ps_filter(phylo_rocky_eDNA, primer == "18S")
+phylo_rocky_eDNA_18S
+```
+
+Before we get started, some of our data analysis is completed in PRIMER7, so we need to export elements of the `phylo` elements to use outside of R.
+
+```{r}
+
+#| label: extract-data-for-PRIMER
+
+#all
+meta_target <- data.frame(sample_data(phylo_rocky_eDNA))
+write.csv(meta_target, file = "Processed_Data/PRIMER7_format/meta_target.csv") 
+
+meta_target_t <- t(meta_target)
+write.csv(meta_target_t, file = "Processed_Data/PRIMER7_format/meta_target_t.csv") 
+
+taxa_target <- data.frame(otu_table(phylo_rocky_eDNA))
+write.csv(taxa_target, file = "Processed_Data/PRIMER7_format/taxa_target.csv") 
+
+# CO1
+pseq_CO1 <- ps_filter(phylo_rocky_eDNA, primer == "CO1")
+
+meta_target_CO1 <- data.frame(sample_data(pseq_CO1))
+write.csv(meta_target_CO1, file = "Processed_Data/PRIMER7_format/meta_target_CO1.csv") 
+
+meta_target_CO1_t <- t(meta_target_CO1)
+write.csv(meta_target_CO1_t, file = "Processed_Data/PRIMER7_format/meta_target_CO1_t.csv") 
+
+taxa_target_CO1 <- data.frame(otu_table(pseq_CO1))
+write.csv(taxa_target_CO1, file = "Processed_Data/PRIMER7_format/taxa_target_CO1.csv") 
+
+# 18S
+pseq_18S <- ps_filter(phylo_rocky_eDNA, primer == "18S")
+
+meta_target_18S <- data.frame(sample_data(pseq_18S))
+write.csv(meta_target_18S, file = "Processed_Data/PRIMER7_format/meta_target_18S.csv") 
+
+meta_target_18S_t <- t(meta_target_18S)
+write.csv(meta_target_18S_t, file = "Processed_Data/PRIMER7_format/meta_target_18S_t.csv") 
+
+taxa_target_18S <- data.frame(otu_table(pseq_18S))
+write.csv(taxa_target_18S, file = "Processed_Data/PRIMER7_format/taxa_target_18S.csv") 
+```
+
+## Sequence outputs
+
+Explore what it looks like.
+
+```{r}
+
+#| label: explore-phylo
+
+phylo_rocky_eDNA 
+microbiome::summarize_phyloseq(phylo_rocky_eDNA) 
+table(meta(phylo_rocky_eDNA)$controlCheck, useNA = "always") #sample type 
+table(meta(phylo_rocky_eDNA)$shorePosition, useNA = "always") #sample type
+```
+
+```{r}
+
+#| label: explore-samples
+
+table(meta(phylo_rocky_eDNA)$primer, useNA = "always") #Primer
+table(meta(phylo_rocky_eDNA)$sampleType, useNA = "always") #sample type
+table(meta(phylo_rocky_eDNA)$type, useNA = "always") #rockpool vs tidal
+table(meta(phylo_rocky_eDNA)$verbatimLocality, useNA = "always") #sites
+```
+
+```{r}
+
+#| label: primer-data-summaries
+
+microbiome::summarize_phyloseq(phylo_rocky_eDNA_CO1)
+microbiome::summarize_phyloseq(phylo_rocky_eDNA_18S)
+```
+
+Check how many samples achieved full sampling effort.
+
+```{r}
+
+#| label: samples-per-site
+
+meta_target$localityID = as.factor(meta_target$localityID)
+meta_target$fieldID = as.factor(meta_target$fieldID)
+meta_target$sampleType = as.factor(meta_target$sampleType)
+
+# Count unique fieldIDs per site
+fieldID_counts <- meta_target %>%
+  dplyr::filter(sampleType == "sample") %>%  # Keep only 'sample' rows
+  dplyr::group_by(localityID) %>%
+  dplyr::summarise(num_fieldIDs = n_distinct(fieldID))
+                   
+# View results
+head(fieldID_counts) # 21 / 32 have full sampling effort
+```
+
+## Taxonomy
+
+Let's get some information about taxonomy.
+
+First, let's see how many functional groups, phyla, families, genera, and taxa there are in the data.
+
+```{r}
+
+#| label: explore-taxonomy
+
+length(get_taxa_unique(phylo_rocky_eDNA, "valid_name")) #1026
+length(get_taxa_unique(phylo_rocky_eDNA, "genus")) #655
+length(get_taxa_unique(phylo_rocky_eDNA, "family")) #451
+length(get_taxa_unique(phylo_rocky_eDNA, "phylum")) #19
+length(get_taxa_unique(phylo_rocky_eDNA, "adult")) #13 unique functional groups
+```
+
+Let's explore the taxonomic resolution of our data.
+
+```{r}
+
+#| label: taxonomic-resolution
+
+is_species_duplicate <- apply(taxonomy_table, 1, function(row) {
+  species_name <- tolower(row["valid_name"])  # Convert Species to lower case
+  
+  # Check if species_name is NA
+  if (is.na(species_name)) {
+    return(FALSE)
+  }
+  
+  # Compare species name to all higher taxonomic levels ignoring case
+  higher_taxa <- tolower(row[1:(which(names(row) == "valid_name") - 1)])  # Convert higher taxa to lower case
+  
+  # Return TRUE if species_name matches any higher taxon
+  return(species_name %in% higher_taxa)
+})
+
+taxonomy_table[is_species_duplicate, "valid_name"] <- NA
+characterized_taxa <- apply(taxonomy_table, 2, function(x) sum(!is.na(x)))
+total_taxa <- nrow(taxonomy_table)
+proportion_characterized <- characterized_taxa / total_taxa
+
+print(proportion_characterized)
+```
+
+### Venn diagrams
+
+Convert to relative abundances.
+
+```{r}
+
+#| label: relative-abundance-calculaion
+
+pseq.rel <- microbiome::transform(phylo_rocky_eDNA, "compositional")
+```
+
+#### Primer crossover
+
+```{r}
+
+#| label: primer-venn-diagram
+
+primers <- unique(as.character(meta(pseq.rel)$primer))
+
+# supplying colors in the order they appear in list_core
+mycols <- c("18S"="#96E6B3", "CO1"="#E5A361") 
+
+#all taxa
+list_core <- c() # an empty object to store information
+
+for (n in primers){ # for each variable n in primers
+  print(paste0("Identifying Core Taxa for ", n))
+  
+  ps.sub <- subset_samples(pseq.rel, primer == n) # Choose sample from DiseaseState by n
+  
+  core_m <- get_taxa_unique(prune_taxa(taxa_sums(ps.sub) > 0, ps.sub), "valid_name") 
+  
+  print(paste0("No. of core taxa in ", n, " : ", length(core_m))) # print core taxa identified in each DiseaseState.
+  list_core[[n]] <- core_m # add to a list core taxa for each group.
+  print(list_core)
+}
+
+# Specify colors and plot venn
+venn_all_primers <- plot(euler(list_core),
+     fills = mycols,
+     shape = "ellipse",
+     quantities = list(type = c("counts", "percent"), cex = 5),
+     legend = FALSE,
+     labels = list(cex = 6, font = 2),
+     lwd = 3)
+
+venn_all_primers
+```
+
+#### Shore position crossover
+
+```{r}
+
+#| label: shore-height-venn-diagram
+
+pseq.rel.type <- subset_samples(pseq.rel, shorePosition != "NA")
+shore <- unique(as.character(meta(pseq.rel.type)$shorePosition))
+
+# supplying colors in the order they appear in list_core
+mycols <- c("High"="lightblue",
+            "Low"="lightblue4",
+            "Open Water " = "white") 
+
+list_core <- c() # an empty object to store information
+
+for (n in shore){ # for each variable n in primers
+  print(paste0("Identifying Core Taxa for ", n))
+  
+  ps.sub <- subset_samples(pseq.rel.type, shorePosition == n) # Choose sample from DiseaseState by n
+  
+  core_m <- get_taxa_unique(prune_taxa(taxa_sums(ps.sub) > 0, ps.sub), "valid_name") 
+  
+  print(paste0("No. of core taxa in ", n, " : ", length(core_m))) # print core taxa identified in each DiseaseState.
+  list_core[[n]] <- core_m # add to a list core taxa for each group.
+  print(list_core)
+}
+
+venn_all_shore <- plot(euler(list_core),
+                        fills = mycols,
+                        shape = "ellipse",
+                        quantities = list(type = c("counts", "percent"), cex = 3),
+                        legend = FALSE,
+                       labels = list(cex = 3, font = 2),
+                       lwd = 3)
+
+venn_all_shore
+```
+
+```{r}
+
+#| label: both-venn-diagram
+
+venn_two <- cowplot::plot_grid(venn_all_primers,
+                      venn_all_shore, labels = c('a', 'b'), label_size = 50, nrow = 1)
+
+venn_two 
+
+ggsave(filename = "Figures/venn_two.png", plot = venn_two,
+       device = "png", dpi = 300, units = "mm", height = 550, width = 1250)
+```
+
+```{r}
+
+#| label: country-venn-diagram
+
+#using another venn function
+
+ggvenn_pq(
+  physeq = phylo_rocky_eDNA,
+  fact = "country",
+  min_nb_seq = 0,
+  taxonomic_rank = NULL,
+  split_by = NULL,
+  add_nb_samples = TRUE,
+  add_nb_seq = FALSE,
+  rarefy_before_merging = FALSE,
+  rarefy_after_merging = FALSE,
+  verbose = TRUE,
+  type = "nb_taxa",
+  na_remove = TRUE
+) + ggplot2::scale_fill_distiller(palette = "Blues", direction = 1)
+
+```
+
+```{r}
+## Simple visualizing of all taxonomic groups together ----
+
+# Subset phylo
+species_data <- as.data.frame(tax_table(phylo_rocky_eDNA)) #Extract the species data from the phyloseq object
+
+### Kingdom summary ----
+# Count the number of species for each phylum
+kingdom_species_count<- data.table:::setDT(species_data)[, .(count = data.table:::uniqueN(valid_name)), by = kingdom]
+
+kingdom_species_count
+
+# Plot
+taxa_groups_bar_kingdom <- ggplot(data = kingdom_species_count, aes(x= count, y = forcats::fct_rev(reorder(kingdom,kingdom)), fill = kingdom)) + 
+  geom_bar(stat = "identity")+
+  xlab("Number of species") + ylab("Kingdom")+
+  geom_text(aes(label=count), position=position_dodge(width=0.9), vjust=-0.25, hjust=-0.25)+
+  scale_fill_manual(values=c("skyblue3", "lightgreen", "grey30", "#96E6B3", "grey50", "#96E6B3", "grey50", "grey90"), name = "Kingdom")+
+  theme_classic()
+
+taxa_groups_bar_kingdom
+
+ggsave(filename = "Figures/taxa_groups_bar_kingdom_98_curated.png", plot = taxa_groups_bar_kingdom,
+       device = "png", dpi = 300, units = "mm", height = 150, width = 250)
+
+### Phylum summary ----
+# Count the number of species for each phylum
+phylum_species_count<- data.table:::setDT(species_data)[, .(count = data.table:::uniqueN(valid_name)), by = phylum]
+phylum_species_count
+
+#add kingdom for fill
+kingdom_phyla <- species_data %>%
+  dplyr::select(kingdom, phylum)
+
+phylum_species_count <- na.omit(unique(left_join(phylum_species_count, kingdom_phyla)))
+
+# Plot
+taxa_groups_bar_phylum <- ggplot(data = phylum_species_count, aes(x= count, y = forcats::fct_rev(reorder(phylum,phylum)), fill = kingdom)) + 
+  geom_bar(stat = "identity")+
+  xlab("Number of species") + ylab("Phylum")+
+  geom_text(aes(label=count), position=position_dodge(width=0.9), vjust=0.3, hjust=-0.25)+
+  scale_fill_manual(values=c("skyblue3", "grey50", "lightgreen", "grey30", "#96E6B3", "grey20"))+
+  theme_classic()
+
+taxa_groups_bar_phylum
+
+ggsave(filename = "Figures/taxa_groups_bar_phylum_98_curated.png", plot = taxa_groups_bar_phylum,
+       device = "png", dpi = 300, units = "mm", height = 300, width = 250)
+```
+
+```{r}
+function_species_count<- data.table:::setDT(species_data)[, .(count = data.table:::uniqueN(valid_name)), by = .(adult, phylum, kingdom)]
+function_species_count
+
+#recode functional groups in for fill
+function_species_count$simple <-dplyr::recode(function_species_count$adult,
+                "zooplankton" = "Other",
+                "benthos" = "Macrobenthos",
+                "phytoplankton" = "Other",
+                "algae" = "Other",
+                "macrobenthos" = "Macrobenthos",
+                "macroalgae" = "Macroalgae",
+                "meiobenthos" = "Macrobenthos",
+                "mixoplankton" = "Other",
+                "nekton" = "Other",
+                "macroplankton" = 'Other',
+                "nanoplankton" = 'Other',
+                "epibenthos" = 'Macrobenthos',
+                "endobenthos" = 'Macrobenthos',
+                "microplankton" = 'Other',
+                "megabenthos" = 'Macrobenthos',
+                "mesoplankton" = 'Other',
+                "macro" = "Macrobenthos", #in the 'soil'
+                "plankton" = "Other",
+                "phytobenthos"= "Other")
+
+function_species_count <- function_species_count %>%
+  mutate(simple = ifelse(is.na(simple), "Not found", simple))
+
+function_species_count
+
+# Compute the total count per phylum
+function_species_count$phylum = as.factor(function_species_count$phylum)
+
+# Group by phylum and simple, and summarize the total count
+total_count <- function_species_count %>%
+  dplyr::group_by(phylum, simple) %>%  # Grouping by both phylum and simple
+  dplyr::summarise(total_count = sum(count, na.rm = TRUE), .groups = 'drop')  # Summarize total count
+
+total_count
+
+# Merge total counts with the original data
+function_species_count_reduced <- function_species_count %>% 
+  subset(select = c("phylum", "kingdom"))
+
+function_species_count_reduced <- function_species_count_reduced %>%
+  distinct()
+
+function_species_count <- left_join(function_species_count_reduced, total_count, by = "phylum")
+function_species_count
+
+taxa_ordered <- c(
+  "Porifera", 
+  "Cnidaria", 
+  "Ctenophora", 
+  "Gastrotricha", 
+  "Annelida", 
+  "Platyhelminthes",
+  "Mollusca", 
+  "Arthropoda", 
+  "Bryozoa", 
+  "Nematoda", 
+  "Chaetognatha", 
+  "Echinodermata", 
+  "Hemichordata", 
+  "Chordata", 
+  "Phoronida", 
+  "Orthonectida",
+  "Ochrophyta", 
+  "Chlorophyta", 
+  "Rhodophyta"
+)
+
+# Create the ggplot with custom color mapping
+taxa_groups_bar_phylum_functional <- ggplot(data = function_species_count, aes(x = total_count, y = phylum, fill = simple)) +
+  geom_bar(stat = "identity") +
+  xlab("Number of unique taxa") +
+  ylab("Phylum") +
+  scale_fill_manual(values = c("Macroalgae" = "#96E6B3",
+                               "Macrobenthos" = "#E5A361",
+                               "Other" = "grey60",
+                               "Not found" = "lightgrey")) +
+  labs(fill = "Taxonomic group") +
+  scale_y_discrete(limits = taxa_ordered) +
+  geom_text(aes(label = total_count), 
+            position = position_stack(vjust = 0.5),  # Position text in the center of the bars
+            size = 3,  # Adjust size of the text
+            color = "black") +  # Change text color for visibility
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(size = 14),  # Make x-axis title slightly bigger
+    axis.title.y = element_text(size = 14),  # Make y-axis title slightly bigger
+    axis.text.x = element_text(size = 12),   # Make x-axis labels slightly bigger
+    axis.text.y = element_text(size = 12),   # Make y-axis labels slightly bigger
+    legend.title = element_text(size = 14),  # Make legend title slightly bigger
+    legend.text = element_text(size = 12)    # Make legend text slightly bigger
+  )
+
+
+# Print the plot
+taxa_groups_bar_phylum_functional
+
+ggsave(filename = "Figures/taxa_groups_bar_phylum_98_curated_functional.png", plot = taxa_groups_bar_phylum_functional,
+       device = "png", dpi = 300, units = "mm", height = 200, width = 300)
+
+```
+
+## Diversity analyses
+
+```{r}
+
+# Set site and sample site orders for figures
+site_order <- c(
+  "Scourie",
+  "Rispond",
+  "Skerray",
+  "Murkle Bay",
+  "Portskerra",
+  "Borwick, Yesnaby",
+  "Sannick",
+  "Wick",#Scotland
+  "Great Orme East",
+  "Little Orme",
+  "Menai Bridge",
+  "Porth Oer",
+  "Porth Swtan",
+  "Rhosneigr",#North Wales
+  "Castlehead Rocks",
+  "Filey Brigg",
+  "Newton Point",
+  "Rumbling Kern",
+  "Scalby Mills", #Northumbria
+  "Aberystwyth",
+  "Neyland",
+  "Broad Haven",
+  "Skomer Island",
+  "West Angle",
+  "Monkstone Point",
+  "Dale Jetty",
+  "Martin's Haven",#South Wales
+  "Lizard Point",
+  "Looe",
+  "Sennen Cove",
+  "St Ives",
+  "Trevone" #Cornwall
+) 
+
+control_order <- c(
+  "field-control",
+  "lab-negative-control",
+  "lab-positive-control",
+  "sample",
+  "replicate",
+  "failed-repeat",
+  "stageone-repeat"
+)
+
+country_order <- c("Scotland",
+                   "Northeast England",
+                   "North Wales",
+                   "South Wales",
+                   "Southwest England")
+
+shore_height_order <- c("High", "Low", "Open Water")
+```
+
+### Rarefaction curves
+
+```{r}
+
+#### Scotland ----
+
+#CO1
+SCH_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "Scotland" & primer == 'CO1')
+asv_abund_df_SCH_CO1 <- as.data.frame(t(phyloseq::otu_table(SCH_phylo_CO1)))
+raremax <- min(rowSums(asv_abund_df_SCH_CO1))
+raremax
+
+#Create tidy output
+out_SCH_CO1 <- vegan::rarecurve(
+  x = asv_abund_df_SCH_CO1,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+SCH_CO1_curve <- ggplot(data = out_SCH_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "#E5A361") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for Scotland CO1 samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#18S
+SCH_phylo_18S <- subset_samples(phylo_rocky_eDNA, country == "Scotland" & primer == '18S')
+asv_abund_df_SCH_18S <- as.data.frame(t(phyloseq::otu_table(SCH_phylo_18S)))
+raremax <- min(rowSums(asv_abund_df_SCH_18S))
+raremax
+
+#Create tidy output
+out_SCH_18S <- vegan::rarecurve(
+  x = asv_abund_df_SCH_18S,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+SCH_18S_curve <- ggplot(data = out_SCH_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "green3") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for Scotland 18S samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#### South Wales ----
+
+#CO1
+SW_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "South Wales" & primer == 'CO1')
+asv_abund_df_SW_CO1 <- as.data.frame(t(phyloseq::otu_table(SW_phylo_CO1)))
+raremax <- min(rowSums(asv_abund_df_SW_CO1))
+raremax
+
+#Create tidy output
+out_SW_CO1 <- vegan::rarecurve(
+  x = asv_abund_df_SW_CO1,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+SW_CO1_curve <- ggplot(data = out_SW_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "#E5A361") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for South Wales CO1 samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#18S
+SW_phylo_18S <- subset_samples(phylo_rocky_eDNA, country == "South Wales" & primer == '18S')
+asv_abund_df_SW_18S <- as.data.frame(t(phyloseq::otu_table(SW_phylo_18S)))
+raremax <- min(rowSums(asv_abund_df_SW_18S))
+raremax
+
+#Create tidy output
+out_SW_18S <- vegan::rarecurve(
+  x = asv_abund_df_SW_18S,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+SW_18S_curve <- ggplot(data = out_SW_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "green3") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for South Wales 18S samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#### Cornwall ----
+
+#CO1
+CN_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "Southwest England" & primer == 'CO1')
+asv_abund_df_CN_CO1 <- as.data.frame(t(phyloseq::otu_table(CN_phylo_CO1)))
+raremax <- min(rowSums(asv_abund_df_CN_CO1))
+raremax
+
+#Create tidy output
+out_CN_CO1 <- vegan::rarecurve(
+  x = asv_abund_df_CN_CO1,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+CN_CO1_curve <- ggplot(data = out_CN_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "#E5A361") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for Cornwall CO1 samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#18S
+CN_phylo_18S <- subset_samples(phylo_rocky_eDNA, country == "Southwest England" & primer == '18S')
+asv_abund_df_CN_18S <- as.data.frame(t(phyloseq::otu_table(CN_phylo_18S)))
+raremax <- min(rowSums(asv_abund_df_CN_18S))
+raremax
+
+#Create tidy output
+out_CN_18S <- vegan::rarecurve(
+  x = asv_abund_df_CN_18S,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+CN_18S_curve <- ggplot(data = out_CN_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "green3") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for Cornwall 18S samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#### Northeast ----
+
+#CO1
+NE_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "Northeast England" & primer == 'CO1')
+asv_abund_df_NE_CO1 <- as.data.frame(t(phyloseq::otu_table(NE_phylo_CO1)))
+raremax <- min(rowSums(asv_abund_df_NE_CO1))
+raremax
+
+#Create tidy output
+out_NE_CO1 <- vegan::rarecurve(
+  x = asv_abund_df_NE_CO1,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+NE_CO1_curve <- ggplot(data = out_NE_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "#E5A361") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for Northeast CO1 samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#18S
+NE_phylo_18S <- subset_samples(phylo_rocky_eDNA, country == "Northeast England" & primer == '18S')
+asv_abund_df_NE_18S <- as.data.frame(t(phyloseq::otu_table(NE_phylo_18S)))
+raremax <- min(rowSums(asv_abund_df_NE_18S))
+raremax
+
+#Create tidy output
+out_NE_18S <- vegan::rarecurve(
+  x = asv_abund_df_NE_18S,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+NE_18S_curve <- ggplot(data = out_NE_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "green3") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for Northeast 18S samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#### North Wales ----
+
+#CO1
+NW_phylo_CO1 <- subset_samples(phylo_rocky_eDNA, country == "North Wales" & primer == 'CO1')
+asv_abund_df_NW_CO1 <- as.data.frame(t(phyloseq::otu_table(NW_phylo_CO1)))
+raremax <- min(rowSums(asv_abund_df_NW_CO1))
+raremax
+
+#Create tidy output
+out_NW_CO1 <- vegan::rarecurve(
+  x = asv_abund_df_NW_CO1,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+NW_CO1_curve <- ggplot(data = out_NW_CO1, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "#E5A361") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for North Wales CO1 samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+#18S
+NW_phylo_18S <- subset_samples(phylo_rocky_eDNA, country == "North Wales" & primer == '18S')
+asv_abund_df_NW_18S <- as.data.frame(t(phyloseq::otu_table(NW_phylo_18S)))
+raremax <- min(rowSums(asv_abund_df_NW_18S))
+raremax
+
+#Create tidy output
+out_NW_18S <- vegan::rarecurve(
+  x = asv_abund_df_NW_18S,
+  step = 20,
+  xlab = "Read depth", ylab = "ASVs",
+  lwd = 1,
+  label = F,
+  tidy = T,
+  sample = raremax)
+
+#Plot
+NW_18S_curve <- ggplot(data = out_NW_18S, mapping = aes(x = Sample, y = Species, group = Site)) +
+  geom_line(color = "green3") +
+  xlab("Read depth") + ylab("ASVs") +
+  #ggtitle("Rarefaction curve for North Wales 18S samples")+
+  geom_vline(xintercept =raremax, linetype="dashed") +
+  theme_classic()
+
+curves_all <- cowplot::plot_grid(NW_18S_curve, 
+          NW_CO1_curve,
+          SCH_18S_curve,
+          SCH_CO1_curve,
+          SW_18S_curve,
+          SW_CO1_curve,
+          CN_18S_curve,
+          CN_CO1_curve,
+          NE_18S_curve,
+          NE_CO1_curve, labels = c('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'), label_size = 12, ncol = 2)
+
+curves_all
+
+ggsave(filename = "Figures/rarefaction_curve_all.png", plot = curves_all,
+       device = "png", dpi = 300, units = "mm", height = 450, width = 300)
+```
+
+### Alpha diversity
+
+```{r}
+
+alpha_df <- phyloseq::estimate_richness(physeq = phylo_rocky_eDNA, measure = c("Observed", "Shannon"))
+
+head(alpha_df)
+```
