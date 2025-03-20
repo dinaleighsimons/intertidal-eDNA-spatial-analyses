@@ -200,6 +200,7 @@ How many functional groups, phyla, families, genera, and taxa are in the data?
 
 #| label: explore-taxonomy
 
+length(get_taxa_unique(phylo_rocky-eDNA, "scientificname"))
 length(get_taxa_unique(phylo_rocky_eDNA, "valid_name")) #1026
 length(get_taxa_unique(phylo_rocky_eDNA, "genus")) #655
 length(get_taxa_unique(phylo_rocky_eDNA, "family")) #451
@@ -214,7 +215,7 @@ Let's explore the taxonomic resolution of our data (i.e. the proportion of each 
 #| label: taxonomic-resolution
 
 is_species_duplicate <- apply(taxonomy_table, 1, function(row) {
-  species_name <- tolower(row["valid_name"])  # Convert Species to lower case
+  species_name <- tolower(row["scientificname"])  # Convert Species to lower case
   
   # Check if species_name is NA
   if (is.na(species_name)) {
@@ -222,13 +223,13 @@ is_species_duplicate <- apply(taxonomy_table, 1, function(row) {
   }
   
   # Compare species name to all higher taxonomic levels ignoring case
-  higher_taxa <- tolower(row[1:(which(names(row) == "valid_name") - 1)])  # Convert higher taxa to lower case
+  higher_taxa <- tolower(row[1:(which(names(row) == "scientificname") - 1)])  # Convert higher taxa to lower case
   
   # Return TRUE if species_name matches any higher taxon
   return(species_name %in% higher_taxa)
 })
 
-taxonomy_table[is_species_duplicate, "valid_name"] <- NA
+taxonomy_table[is_species_duplicate, "scientificname"] <- NA
 characterized_taxa <- apply(taxonomy_table, 2, function(x) sum(!is.na(x)))
 total_taxa <- nrow(taxonomy_table)
 proportion_characterized <- characterized_taxa / total_taxa
@@ -280,7 +281,7 @@ for (n in primers){ # for each variable n in primers
   
   ps.sub <- subset_samples(pseq.rel, primer == n) # Choose sample from DiseaseState by n
   
-  core_m <- get_taxa_unique(prune_taxa(taxa_sums(ps.sub) > 0, ps.sub), "valid_name") 
+  core_m <- get_taxa_unique(prune_taxa(taxa_sums(ps.sub) > 0, ps.sub), "scientificname") 
   
   print(paste0("No. of core taxa in ", n, " : ", length(core_m))) # print core taxa identified in each DiseaseState.
   list_core[[n]] <- core_m # add to a list core taxa for each group.
@@ -319,7 +320,7 @@ for (n in shore){ # for each variable n in primers
   
   ps.sub <- subset_samples(pseq.rel.type, shorePosition == n) # Choose sample from DiseaseState by n
   
-  core_m <- get_taxa_unique(prune_taxa(taxa_sums(ps.sub) > 0, ps.sub), "valid_name") 
+  core_m <- get_taxa_unique(prune_taxa(taxa_sums(ps.sub) > 0, ps.sub), "scientificname") 
   
   print(paste0("No. of core taxa in ", n, " : ", length(core_m))) # print core taxa identified in each DiseaseState.
   list_core[[n]] <- core_m # add to a list core taxa for each group.
@@ -2153,7 +2154,7 @@ for (i in Marclim_genera_list) {
     }
     
     # Generate the bar plot for the current genus
-    p <- plot_bar(taxa, "shorePosition", fill = "valid_name", title = paste(i, "across samples")) + 
+    p <- plot_bar(taxa, "shorePosition", fill = "scientificname", title = paste(i, "across samples")) + 
       labs(y = "Read count", x = "Shore Height") +
       theme_classic()
     p
@@ -2185,7 +2186,7 @@ for (i in Marclim_genera_list) {
     }
     
     # Generate the bar plot for the current genus
-    p <- plot_bar(taxa, "country", fill = "valid_name", title = paste(i, "across regions")) + 
+    p <- plot_bar(taxa, "country", fill = "scientificname", title = paste(i, "across regions")) + 
       labs(y = "Read count", x = "Shore Height") +
       theme_classic()
     p
@@ -2216,7 +2217,7 @@ for (i in Marclim_genera_list) {
     }
     
     # Generate the bar plot for the current genus
-    p <- plot_bar(taxa, "verbatimLocality ", fill = "valid_name", title = paste(i, "across sites")) + 
+    p <- plot_bar(taxa, "verbatimLocality ", fill = "scientificname", title = paste(i, "across sites")) + 
       labs(y = "Read count", x = "Shore Height") +
       theme_classic() +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -2345,12 +2346,12 @@ df_summary_region <- df_long %>%
 list.of.sw.invasives <- df_long %>%  filter(biogeography == 'invasive', 
                                             country == 'Southwest England',
                                             reads > 0)
-list.of.sw.invasives  <- unique(list.of.sw.invasives$valid_name)
+list.of.sw.invasives  <- unique(list.of.sw.invasives$scientificname)
 
 list.of.sch.boreal <- df_long %>%  filter(biogeography == 'boreal', 
                                             country == 'Scotland',
                                             reads > 0)
-list.of.sch.boreal   <- unique(list.of.sch.boreal $valid_name)
+list.of.sch.boreal   <- unique(list.of.sch.boreal$scientificname)
 
 # Calculate the total number of taxa in each region
 df_summary_region <- df_summary_region %>%
