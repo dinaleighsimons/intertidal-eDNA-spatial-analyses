@@ -200,7 +200,7 @@ How many functional groups, phyla, families, genera, and taxa are in the data?
 
 #| label: explore-taxonomy
 
-length(get_taxa_unique(phylo_rocky-eDNA, "scientificname"))
+length(get_taxa_unique(phylo_rocky_eDNA, "scientificname"))
 length(get_taxa_unique(phylo_rocky_eDNA, "valid_name")) #1026
 length(get_taxa_unique(phylo_rocky_eDNA, "genus")) #655
 length(get_taxa_unique(phylo_rocky_eDNA, "family")) #451
