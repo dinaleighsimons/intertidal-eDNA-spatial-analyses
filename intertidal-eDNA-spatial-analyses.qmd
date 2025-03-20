@@ -10,6 +10,12 @@ message: false
 warning: false
 ---
 
+## Introduction
+
+This pipeline replicates all analyses in Simons *et al* (2025) "Characterising rocky intertidal biodiversity using environmental DNA metabarcoding from local to national scales".
+
+## Load packages
+
 ```{r}
 #| label: load-packages
 #| echo: true
@@ -53,7 +59,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 
 ## Importing data and tidying
 
-Let's load our phyloseq object and long data, which have already been decontaminated, filtered for target taxa, and checked for quality control through [this pipeline](https://github.com/dinaleighsimons/intertidal-eDNA-formatting-and-quality-control).
+Let's load our phyloseq object and long data, which have already been tidied, decontaminated, filtered for target taxa, and checked for quality control through [this pipeline](https://github.com/dinaleighsimons/intertidal-eDNA-formatting-and-quality-control).
 
 ```{r}
 
@@ -76,7 +82,7 @@ phylo_rocky_eDNA_18S <- ps_filter(phylo_rocky_eDNA, primer == "18S")
 phylo_rocky_eDNA_18S
 ```
 
-Before we get started, some of our data analysis is completed in PRIMER7, so we need to export elements of the `phylo` elements to use outside of R.
+Some of our data analysis (PERMANOVAs) is completed in PRIMER7, so we need to export elements of the `phylo` elements to use outside of R.
 
 ```{r}
 
@@ -119,9 +125,18 @@ taxa_target_18S <- data.frame(otu_table(pseq_18S))
 write.csv(taxa_target_18S, file = "Processed_Data/PRIMER7_format/taxa_target_18S.csv") 
 ```
 
+We also need some extra meta data for looking at ecological concordance.
+
+```{r}
+
+#| label: import-biogeo-data
+
+biogeo <- read.csv("Input_Data/marclim_categories_tidy.csv")
+```
+
 ## Sequence outputs
 
-Explore what it looks like.
+Explore what our `phyloseq` looks like.
 
 ```{r}
 
@@ -133,6 +148,8 @@ table(meta(phylo_rocky_eDNA)$controlCheck, useNA = "always") #sample type
 table(meta(phylo_rocky_eDNA)$shorePosition, useNA = "always") #sample type
 ```
 
+We can also look to see how many samples are across different categories like primer, sample type and site.
+
 ```{r}
 
 #| label: explore-samples
@@ -143,6 +160,8 @@ table(meta(phylo_rocky_eDNA)$type, useNA = "always") #rockpool vs tidal
 table(meta(phylo_rocky_eDNA)$verbatimLocality, useNA = "always") #sites
 ```
 
+And let's look at the `phyloseq` objects per primer.
+
 ```{r}
 
 #| label: primer-data-summaries
@@ -151,7 +170,7 @@ microbiome::summarize_phyloseq(phylo_rocky_eDNA_CO1)
 microbiome::summarize_phyloseq(phylo_rocky_eDNA_18S)
 ```
 
-Check how many samples achieved full sampling effort.
+Check how many samples were collected per site. We can see we have an unbalanced sampling effort.
 
 ```{r}
 
@@ -175,7 +194,7 @@ print(fieldID_counts) # 21 / 32 have full sampling effort
 
 Let's get some information about taxonomy.
 
-First, let's see how many functional groups, phyla, families, genera, and taxa there are in the data.
+How many functional groups, phyla, families, genera, and taxa are in the data?
 
 ```{r}
 
@@ -188,7 +207,7 @@ length(get_taxa_unique(phylo_rocky_eDNA, "phylum")) #19
 length(get_taxa_unique(phylo_rocky_eDNA, "adult")) #13 unique functional groups
 ```
 
-Let's explore the taxonomic resolution of our data.
+Let's explore the taxonomic resolution of our data (i.e. the proportion of each taxonomy ranking achieved).
 
 ```{r}
 
@@ -215,6 +234,20 @@ total_taxa <- nrow(taxonomy_table)
 proportion_characterized <- characterized_taxa / total_taxa
 
 print(proportion_characterized)
+```
+
+Let's use our rank variable to double check the above function.
+
+```{r}
+
+#| label: taxonomic-resolution-rank
+
+taxonomy_table_summary <- as.data.frame(taxonomy_table) %>% 
+  dplyr::group_by(rank) %>% 
+  dplyr::summarise(count = n()) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+taxonomy_table_summary
 ```
 
 ### Venn diagrams
@@ -321,6 +354,8 @@ ggsave(filename = "Figures/venn_two.png", plot = venn_two,
        device = "png", dpi = 300, units = "mm", height = 550, width = 1250)
 ```
 
+We can also look at crossover between regions, although the venn diagram is quite complex!
+
 ```{r}
 
 #| label: country-venn-diagram
@@ -354,7 +389,7 @@ Let's make some simple visualizing of all taxonomic groups together.
 taxonomy_table <- as.data.frame(taxonomy_table)
 
 # Count the number of species for each phylum
-kingdom_species_count<- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_name)), by = kingdom]
+kingdom_species_count<- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_AphiaID)), by = kingdom]
 
 kingdom_species_count
 
@@ -395,7 +430,7 @@ taxa_groups_bar_kingdom
 #| label: taxa-together-phylum
 
 # Count the number of species for each phylum
-phylum_species_count<- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_name)), by = phylum]
+phylum_species_count<- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_AphiaID)), by = phylum]
 phylum_species_count
 
 #add kingdom for fill
@@ -436,7 +471,7 @@ taxa_groups_bar_phylum
 #| label: taxa-together-functional-group
 
 #count number by functional group
-function_species_count <- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_name)), by = .(adult_simple, phylum, kingdom)] %>%
+function_species_count <- data.table:::setDT(taxonomy_table)[, .(count = data.table:::uniqueN(valid_AphiaID)), by = .(adult_simple, phylum, kingdom)] %>%
   mutate(adult_simple = ifelse(is.na(adult_simple), "Not found", adult_simple))
 function_species_count$phylum = as.factor(function_species_count$phylum)
 
@@ -578,6 +613,8 @@ shore_height_order <- c("High", "Low", "Open Water")
 ```
 
 ### Rarefaction curves
+
+Rarefaction curves are used to check if our read depths look suitable enough to capture all diversity present in the samples. We make a curve for each region and primer.
 
 Scotland
 
@@ -854,7 +891,7 @@ NW_18S_curve <- ggplot(data = out_NW_18S, mapping = aes(x = Sample, y = Species,
   theme_classic()
 ```
 
-Plot all together
+Plot all together.
 
 ```{r}
 
@@ -907,7 +944,7 @@ diversity_meta <- diversity_meta[!is.na(diversity_meta$averagePH), ]
 
 #### Visualize data
 
-Let's check the distributions of the data.
+Let's check the distributions of our raw data.
 
 ```{r}
 
@@ -934,7 +971,8 @@ diversity_meta_summary <- diversity_meta %>%
 head(diversity_meta_summary) 
 
 ggplot(diversity_meta, aes(x = shorePosition, y = averageTemp)) + 
-  geom_boxplot()
+  geom_boxplot() +
+  theme_classic()
 ```
 
 ```{r}
@@ -1118,7 +1156,7 @@ confint(contrast_shannon_1)
 confint(contrast_shannon_2)
 ```
 
-#### Plots
+#### Box and scatter plots
 
 ```{r}
 
@@ -1243,7 +1281,184 @@ ggsave(filename = "Figures/alpha_plot_all.png", plot = alpha_plot_all ,
        device = "png", dpi = 300, units = "mm", height = 200, width = 230)
 ```
 
+#### Split by algal and inverts
+
+We can also look at diversity across invertebrates and algal separately.
+
+```{r}
+
+#| label: define-inverts-algae
+
+invert_phyla <- c("Acoela",
+                  "Amphioxus",
+                  "Annelida",
+                  "Arthropoda",
+                  "Brachiopoda",
+                  "Bryozoa",
+                  "Cephalochordata",
+                  "Chaetognatha",
+                  "Chordata",
+                  "Cnidaria",
+                  "Crustacea",
+                  "Echiura",
+                  "Echinoderm",
+                  "Echinodermata",
+                  "Gastrotricha",
+                  "Gnathostomulids",
+                  "Hemichordata",
+                  "Kamptozoa",
+                  "Kinorhyncha",
+                  "Loricifera",
+                  "Mollusca",
+                  "Monogenea",
+                  "Myzostomida",
+                  "Nematoda",
+                  "Nemertinea",
+                  "Orthonectida",
+                  "Phaeophyta",
+                  "Phoronida",
+                  "Placozoa",
+                  "Platyhelminthes",
+                  "Porifera",
+                  "Priapulida",
+                  "Pycnogonida",
+                  "Sipunculida",
+                  "Thallophyta",
+                  "Tunicata",
+                  "Xenoturbella",
+                  "Xiphosura") #38
+                  
+algae_phyla <- c("Chlorophyta",
+                 "Ctenophora",
+                 "Dinoflagellata",
+                 "Euglenophyta",
+                 "Gyrista",
+                 "Ochrophyta",
+                 "Phaeophyta",
+                 "Rhodophyta",
+                 "Thallophyta")
+```
+
+```{r}
+
+#| label: filter-phylo-inverts-algae
+
+physeq_invert <- subset_taxa(phylo_rocky_eDNA, phylum %in% invert_phyla)
+physeq_invert
+
+physeq_algae <- subset_taxa(phylo_rocky_eDNA, phylum %in% algae_phyla)
+physeq_algae
+
+physeq_invert_noNA <- ps_filter(physeq_invert, country != "NA")
+physeq_algae_noNA <- ps_filter(physeq_algae, country != "NA")
+```
+
+```{r}
+
+#| label: wrangle-for-comparison-plot-algae-inverts
+
+richness_invert <- estimate_richness(physeq_invert_noNA, measures = c("Observed", "Shannon")) %>% mutate(physeq_object = "Invertebrates")
+
+richness_algae <- estimate_richness(physeq_algae_noNA, measures = c("Observed", "Shannon")) %>% mutate(physeq_object = "Algae")
+
+combined_richness <- bind_rows(richness_invert, richness_algae)
+
+# Add sample metadata (shore position) from your phyloseq objects
+combined_richness$shorePosition <- c(
+  sample_data(physeq_invert_noNA)$shorePosition,
+  sample_data(physeq_algae_noNA)$shorePosition
+)
+
+# Add sample metadata (region) from your phyloseq objects
+combined_richness$region <- c(sample_data(physeq_invert_noNA)$country,
+                              sample_data(physeq_algae_noNA)$country)
+
+combined_richness <- tibble::rownames_to_column(combined_richness, "sample")
+
+# Reshape the data into a long format
+long_richness <- combined_richness %>%
+  pivot_longer(
+    cols = c(Observed, Shannon),
+    names_to = "Diversity_Metric",
+    values_to = "Value"
+  )
+```
+
+```{r}
+
+#| label: plot-algae-invert-richness-region
+
+split_diversity_region <- ggplot(long_richness, aes(x = region, y = Value, colour = physeq_object)) +
+  geom_boxplot() +
+  scale_x_discrete(limits = country_order) +
+  facet_wrap( ~ Diversity_Metric, scales = "free_y") +
+  scale_colour_manual(
+    values = c(
+      "Algae" = "green4",
+      "Invertebrates" = "orange2",
+      "Total" = "grey70"
+    ),
+    name = "Taxonomic group"
+  ) +
+  xlab("Region") +
+  ylab("Diversity Index Value") +
+  theme_bw() +
+  guides(fill = guide_legend(title = "Taxonomic group")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+split_diversity_region 
+```
+
+```{r}
+
+#| label: plot-algae-invert-richness-shoreheight
+
+split_diversity_type <- ggplot(long_richness,
+                               aes(x = shorePosition, y = Value, colour = physeq_object)) +
+  geom_boxplot() +
+  facet_wrap( ~ Diversity_Metric, scales = "free_y") +
+  scale_colour_manual(
+    values = c(
+      "Algae" = "green4",
+      "Invertebrates" = "orange2",
+      "Total" = "grey70"
+    ),
+    name = "Taxonomic group"
+  ) +
+  scale_x_discrete(breaks = shore_height_order) +
+  xlab("Shore position") +
+  ylab("Diversity Index Value") +
+  theme_bw() +
+  guides(fill = guide_legend(title = "Taxonomic group"))
+
+split_diversity_type
+```
+
+Join for export.
+
+```{r}
+
+#| label: plot-algae-invert-richness-both
+
+split_both <- cowplot::plot_grid(
+  split_diversity_region,
+  split_diversity_type,
+  labels = c("a", "b"),
+  align = "v",
+  ncol = 1,
+  rel_heights = c(1.3, 1)
+)
+
+split_both
+
+ggsave(filename = "Figures/alpha_both_split.png", plot = split_both,
+       device = "png", dpi = 300, units = "mm", height = 300, width = 300)
+```
+
 ### Beta diversity
+
+While our stats are performed in PRIMER7, we create our NMDS and dissimilarity plots here.
 
 ```{r}
 
@@ -1837,7 +2052,9 @@ ggsave(filename = "Figures/compare_jaccard_regionsonly_bothprimers.png", plot = 
        device = "png", dpi = 300, units = "mm", height = 190, width = 200)
 ```
 
-### Ecological concordance
+## Ecological concordance
+
+We need to filter our data for those which we have ecological information on. In our case, we are looking at the MarClim species.
 
 ```{r}
 
@@ -1918,6 +2135,8 @@ Marclim_genera_list <- c(
   "Watersipora"
 )
 ```
+
+Let's look at the number of reads of each MarClim species across shore heights, sites and regions. These will be saved into the figure folder within the project.
 
 ```{r}
 
@@ -2014,3 +2233,205 @@ for (i in Marclim_genera_list) {
 }
 
 ```
+
+Now let's make some overall composition plots. We need to do some data wrangling first.
+
+```{r}
+
+#| label: adding-biogeo-data
+
+# filter just Marclim species
+eDNA_marclim <- phylo_rocky_eDNA_long %>%
+  filter(genus %in% Marclim_genera_list)
+
+# correct capitalisation
+eDNA_marclim$taxa <- sapply(strsplit(eDNA_marclim$taxa, " "),
+                            #split taxa into two
+                            function(x)
+                              paste(toupper(substr(x[1], 1, 1)) %>%  #converts genus to upper
+                                      paste0(tolower(
+                                        substr(x[1], 2, nchar(x[1]))
+                                      )), tolower(paste(x[-1], collapse = " "))))
+
+# add biogeo data
+eDNA <- left_join(eDNA_marclim, biogeo, by = "taxa")
+eDNA <- eDNA %>%
+  mutate(pa = ifelse(reads > 0, 1, 0))
+
+eDNA_present <- eDNA %>% filter(pa > 0)
+```
+
+### Shore height concordance 
+
+```{r}
+
+#| label: wrangling-for-shore-height-comp
+
+# Gather high, low, subtidal columns into a 'zone' column
+df_long <- eDNA_present %>%
+  pivot_longer(cols = c(high, low, subtidal),
+               names_to = "zone",
+               values_to = "in_zone") %>%
+  filter(in_zone == TRUE)  # Only keep rows where the taxa is found in that zone
+
+# Filter main dataset now that we've got new overall category
+eDNA_present <- eDNA_present %>%
+  filter(!is.na(true_category))  # Filter rows where true_category is not NA
+
+# Summarize the data to count the number of taxa by shorePosition and zone
+df_summary <- eDNA_present %>% #change this to df_long if want to use other zones
+  dplyr::group_by(shorePosition, true_category) %>%
+  dplyr::summarise(n_taxa = n(), .groups = 'drop')
+
+# Calculate the total number of taxa in each shorePosition
+df_summary <- df_summary %>%
+  dplyr::group_by(shorePosition) %>%
+  dplyr::mutate(total_taxa = sum(n_taxa)) %>%
+  ungroup()
+
+# Calculate the proportion of taxa in each zone within each shorePosition
+df_summary <- df_summary %>%
+  mutate(proportion = n_taxa / total_taxa)
+```
+
+Now plot the figure.
+
+```{r}
+
+#| label: shore-height-concordance-plot
+
+shore_height_prop <- ggplot(df_summary,
+                            aes(x = shorePosition, y = proportion, fill = true_category)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Shore Height", y = "Proportion of Present Taxa", fill = "Recorded Shore Height") +
+  scale_fill_manual(
+    values = c(
+      "high" = "lightblue",
+      "low" = "lightblue4",
+      "subtidal" = "grey70",
+      "high-low" = "orange2",
+      "low-open" = "grey70"
+    ),
+    labels = c(
+      "high" = "High only",
+      "low" = "Low only",
+      "subtidal" = "Open only",
+      "high-low" = "High & Low",
+      "low-open" = "Low & Open"
+    )
+  ) +
+  geom_text(
+    aes(label = sprintf("%.1f%%", proportion * 100)), # Format with 1 decimal place and add "%"
+    position = position_stack(vjust = 0.5), # Center text within bars
+    size = 3.5,
+    color = "black"
+  ) +
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+shore_height_prop
+```
+
+### Regional concordance
+
+```{r}
+
+#| label: wrangling-for-regional-comp
+
+df_summary_region <- df_long %>%
+  dplyr::group_by(country, biogeography) %>%
+  dplyr::summarise(n_taxa = n(), .groups = 'drop')
+
+list.of.sw.invasives <- df_long %>%  filter(biogeography == 'invasive', 
+                                            country == 'Southwest England',
+                                            reads > 0)
+list.of.sw.invasives  <- unique(list.of.sw.invasives$valid_name)
+
+list.of.sch.boreal <- df_long %>%  filter(biogeography == 'boreal', 
+                                            country == 'Scotland',
+                                            reads > 0)
+list.of.sch.boreal   <- unique(list.of.sch.boreal $valid_name)
+
+# Calculate the total number of taxa in each region
+df_summary_region <- df_summary_region %>%
+  dplyr::group_by(country) %>%
+  dplyr::mutate(total_taxa = sum(n_taxa)) %>%
+  ungroup()
+
+# Calculate the proportion of taxa in each zone within each shorePosition
+df_summary_region <- df_summary_region %>%
+  mutate(proportion = n_taxa / total_taxa)
+```
+
+Now plot the figure.
+
+```{r}
+
+#| label: regional-concordance-plot
+
+region_biogeo_prop <- ggplot(df_summary_region,
+                             aes(x = country, y = proportion, fill = biogeography)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Region", y = "Proportion of Present Taxa", fill = "Recorded Biogeography") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(
+    values = c(
+      "boreal" = "#9DBBAE",
+      "lusitanian" = "#E2DBBE",
+      "invasive" = "red4",
+      "cosmopolitan" = "#188FA7"
+    ),
+    labels = c(
+      "boreal" = "Boreal",
+      "lusitanian" = "Lusitanian",
+      "invasive" = "Invasive",
+      "cosmopolitan" = "Cosmopolitan"
+    )
+  ) +
+  geom_text(
+    aes(label = ifelse(
+      proportion * 100 >= 1.1, sprintf("%.1f%%", proportion * 100), ""
+    )),
+    # Hide labels <1%
+    position = position_stack(vjust = 0.5),
+    # Center text within bars
+    size = 4,
+    color = "black"
+  ) +
+  theme_classic() +
+  scale_x_discrete(limits = country_order) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
+
+region_biogeo_prop
+```
+
+Make overall figure.
+
+```{r}
+
+#| label: join-concordance-plot
+
+concordance_plot_prop <- cowplot::plot_grid(
+  shore_height_prop,
+  region_biogeo_prop,
+  labels = c("a", "b"),
+  ncol = 2,
+  align = "hv"
+)
+concordance_plot_prop 
+
+ggsave(
+  filename = "Figures/concordance_plot_prop.png",
+  plot = concordance_plot_prop,
+  device = "png",
+  dpi = 300,
+  units = "mm",
+  height = 180,
+  width = 310
+)
+```
+
+## Concluding remarks
+
+We have now created all figures and reproduced all analyses presented in the manuscript.
