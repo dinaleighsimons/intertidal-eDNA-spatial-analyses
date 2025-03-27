@@ -49,7 +49,8 @@ packages <- c("devtools",
               "ggsignif",
               "emmeans",
               "ggeffects",
-              "gridExtra")
+              "gridExtra",
+              "merDeriv")
 
 new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -1061,6 +1062,16 @@ qqline(resid(richness_mod)) #tail but not too bad
 46.67/(119.37 + 46.67 +  218.58) #12.1%
 ```
 
+```{r}
+
+#| label: richness-random-se
+
+sqrt(diag(vcov(richness_mod, full = TRUE)))
+vv <- vcov(richness_mod, full = TRUE)
+colnames(vv)
+sqrt(diag(vv)[grepl("^cov", colnames(vv))]) # pick out the random components
+```
+
 Let's do the same again for Shannon.
 
 ```{r}
@@ -1109,6 +1120,16 @@ qqline(resid(shannon_mod)) #tail but not too bad
 0.03528/(0.02608 + 0.03528 +  0.45212)*100 #6.87%
 ```
 
+```{r}
+
+#| label: shannon-random-se
+
+sqrt(diag(vcov(shannon_mod, full = TRUE)))
+vv <- vcov(shannon_mod, full = TRUE)
+colnames(vv)
+sqrt(diag(vv)[grepl("^cov", colnames(vv))]) # pick out the random components
+```
+
 #### Planned contrasts
 
 ```{r}
@@ -1129,7 +1150,7 @@ emms_richness <- emmeans::emmeans(richness_mod, ~ shorePosition)
 emms_richness
 
 contrast_richness_1 <- contrast(emms_richness, method = list("High - Low" = High - Low))
-contrast_richness_2 <- contrast(emms_richness, method = list("High - Other" = Low_and_high - Open))
+contrast_richness_2 <- contrast(emms_richness, method = list("Open - Other" = Open - Low_and_high))
 
 contrast_richness_1 
 contrast_richness_2
@@ -1147,7 +1168,7 @@ emms_shannon <- emmeans::emmeans(shannon_mod, ~ shorePosition)
 emms_shannon
 
 contrast_shannon_1 <- contrast(emms_shannon, method = list("High - Low" = High - Low))
-contrast_shannon_2 <- contrast(emms_shannon, method = list("High - Other" = Low_and_high - Open))
+contrast_shannon_2 <- contrast(emms_shannon, method = list("Open - Other" = Open - Low_and_high))
 
 contrast_shannon_1
 contrast_shannon_2
@@ -1218,23 +1239,55 @@ shannon_shore
 #| label: richness-temp-scatter-pred
 
 # Extract the prediction data frame
-pred.temp.rich <- ggpredict(richness_mod, terms = c("averageTemp", "country")) 
+pred.temp.rich <- ggpredict(richness_mod, terms = c("averageTemp", "shorePosition"))
 
-# plot
-richness_temp<- ggplot(pred.temp.rich) + 
-  geom_point(data = diversity_meta, aes(x = averageTemp, y = Observed), size = 1.8, alpha = 0.5) + 
-    geom_line(aes(x = x, y = predicted), colour = "blue4") +          # slope
-    geom_ribbon(aes(x = x, ymin = predicted - std.error, ymax = predicted + std.error), 
-                fill = "lightblue3", alpha = 0.5) +  # error band
-  #scale_colour_manual(values = c("Scotland" = "darkseagreen3",
-                                 #"North Wales" = "lightpink3",
-                                 #"Northeast England" = "yellow3",
-                                 #"South Wales" = "lightblue",
-                                 #"Southwest England" = "purple3"))+
-  xlab("Temperature (°C)") + 
-  ylab("Richness")+
-  xlim(10,25)+
-  labs(colour = "Region")+
+#plot(pred.temp.rich, show_data = TRUE, jitter = TRUE)
+
+# Plot
+richness_temp <- ggplot() +
+  # Add observed data points
+  geom_point(
+    data = diversity_meta,
+    aes(x = averageTemp, y = Observed, colour = shorePosition),
+    size = 1.8,
+    alpha = 0.5
+  ) +
+  
+  # Add predicted lines with color mapping by shorePosition
+  geom_line(data = pred.temp.rich,
+            aes(x = x, y = predicted, colour = group),
+            size = 1.2) +
+  
+  # Add confidence intervals (shading) by shorePosition
+  geom_ribbon(
+    data = pred.temp.rich,
+    aes(
+      x = x,
+      ymin = predicted - std.error,
+      ymax = predicted + std.error,
+      fill = group
+    ),
+    alpha = 0.5
+  ) +
+  
+  # Set manual colors for shorePosition
+  scale_colour_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  scale_fill_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  # Labels and theme
+  xlab("Temperature (°C)") +
+  ylab("Richness") +
+  xlim(10, 25) +
+  labs(colour = "Shore Position", fill = "Shore Position") +
   theme_classic()+
   theme(legend.position = "none")
 
@@ -1246,23 +1299,53 @@ richness_temp
 #| label: shannon-temp-scatter-pred
 
 # Extract the prediction data frame
-pred.temp.shannon <- ggpredict(shannon_mod, terms = c("averageTemp", "country"))
+pred.temp.shannon <- ggpredict(shannon_mod, terms = c("averageTemp", "shorePosition"))
 
 # plot
-shannon_temp<- ggplot(pred.temp.shannon) + 
-  geom_point(data = diversity_meta, aes(x = averageTemp, y = Shannon), size = 1.8, alpha = 0.5) +
-  geom_line(aes(x = x, y = predicted), colour = "blue4") +          # slope
-  geom_ribbon(aes(x = x, ymin = predicted - std.error, ymax = predicted + std.error), 
-              fill = "lightblue3", alpha = 0.5) +  # error band
-  #scale_colour_manual(values = c("Scotland" = "darkseagreen3",
-                                 #"North Wales" = "lightpink3",
-                                 #"Northeast England" = "yellow3",
-                                 #"South Wales" = "lightblue",
-                                 #"Southwest England" = "purple3"))+
-  xlab("Temperature (°C)") + 
-  ylab("Shannon Diversity Index")+
-  xlim(10,26)+
-  labs(colour = "Region")+
+shannon_temp <- ggplot() +
+  # Add observed data points
+  geom_point(
+    data = diversity_meta,
+    aes(x = averageTemp, y = Shannon, colour = shorePosition),
+    size = 1.8,
+    alpha = 0.5
+  ) +
+  
+  # Add predicted lines with color mapping by shorePosition
+  geom_line(data = pred.temp.shannon,
+            aes(x = x, y = predicted, colour = group),
+            size = 1.2) +
+  
+  # Add confidence intervals (shading) by shorePosition
+  geom_ribbon(
+    data = pred.temp.shannon,
+    aes(
+      x = x,
+      ymin = predicted - std.error,
+      ymax = predicted + std.error,
+      fill = group
+    ),
+    alpha = 0.3
+  ) +
+  
+  # Set manual colors for shorePosition
+  scale_colour_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  scale_fill_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  # Labels and theme
+  xlab("Temperature (°C)") +
+  ylab("Shannon Diversity Index") +
+  xlim(10, 25) +
+  labs(colour = "Shore Position", fill = "Shore Position") +
   theme_classic() +
   theme(legend.position = "none")
 
@@ -1275,11 +1358,11 @@ shannon_temp
 
 alpha_plot_all <- plot_grid(rich_shore, richness_temp, shannon_shore, shannon_temp, labels = c("a", "b", "c", "d"), ncol = 2, align = "v")
 
-alpha_plot_all
-
 #save
 ggsave(filename = "Figures/alpha_plot_all.png", plot = alpha_plot_all ,
        device = "png", dpi = 300, units = "mm", height = 200, width = 230)
+
+alpha_plot_all
 ```
 
 #### Split by algal and inverts
@@ -1725,6 +1808,13 @@ averages_regions <- longData_CO1_samesites %>%
 
 averages_regions
 
+# Calculate the averages for each group region
+averages_compare_CO1 <- longData_CO1_samesites %>%
+  dplyr::group_by(comparison) %>%
+  dplyr::summarise(mean_value = mean(value, na.rm = TRUE), .groups = 'drop',
+                   standard_error = standard_error(value))
+averages_compare_CO1
+
 # Define the four unique comparisons you're interested in
 required_comparisons <- c("HighOpenWater",
                           "HighLow",
@@ -1732,10 +1822,10 @@ required_comparisons <- c("HighOpenWater",
                           "Within shore position")
 
 # Filter the sites that have all required comparisons
-filtered_sites <- longData_CO1_samesites %>%
-  dplyr::group_by(Var1_site) %>%
-  dplyr::filter(all(required_comparisons %in% comparison)) %>%
-  dplyr::ungroup()
+filtered_sites <- longData_CO1_samesites #%>%
+  #dplyr::group_by(Var1_site) %>%
+  #dplyr::filter(all(required_comparisons %in% comparison)) %>%
+  #dplyr::ungroup()
 ```
 
 ```{r}
@@ -1747,6 +1837,7 @@ comparison_order <- c("High vs Open Water",
                       "Low vs Open Water",
                       "Same shore position")
 
+# needed if using full sampling effort sites only
 site_order_reduced <- c(
   "Scourie",
   "Skerray",
@@ -1940,11 +2031,21 @@ averages_regions <- longData_18S_samesites %>%
 
 averages_regions
 
+averages_compare_18S <- longData_18S_samesites %>%
+  dplyr::group_by(comparison) %>%
+  dplyr::summarise(
+    mean_value = mean(value, na.rm = TRUE),
+    .groups = 'drop',
+    standard_error = standard_error(value)
+  )
+
+averages_compare_18S
+
 # Filter the sites that have all required comparisons
-filtered_sites_18S <- longData_18S_samesites %>%
-  group_by(Var1_site) %>%
-  dplyr::filter(all(required_comparisons %in% comparison)) %>%
-  ungroup()
+filtered_sites_18S <- longData_18S_samesites #%>%
+  #group_by(Var1_site) %>%
+  #dplyr::filter(all(required_comparisons %in% comparison)) %>%
+  #ungroup()
 
 # Reorder the factor levels for the comparison variable
 filtered_sites_18S$comparison <- factor(
@@ -2047,10 +2148,10 @@ legend <- g_legend(compare_jaccard)
 region_jaccard <- cowplot::plot_grid(
   cowplot::plot_grid(compare_jaccard_regions_18S, compare_jaccard_regions, ncol = 1, labels = c("a", "b"), rel_heights = c(0.8, 1)), legend, ncol =1, rel_heights = c(1, 0.06))
 
-region_jaccard 
-
 ggsave(filename = "Figures/compare_jaccard_regionsonly_bothprimers.png", plot = region_jaccard ,
        device = "png", dpi = 300, units = "mm", height = 190, width = 200)
+
+region_jaccard 
 ```
 
 ## Ecological concordance
@@ -2262,7 +2363,7 @@ eDNA <- eDNA %>%
 eDNA_present <- eDNA %>% filter(pa > 0)
 ```
 
-### Shore height concordance 
+### Shore height concordance
 
 ```{r}
 
