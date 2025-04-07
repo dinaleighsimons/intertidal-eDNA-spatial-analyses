@@ -1021,16 +1021,18 @@ diversity_pH_scatter #no pattern observed
 #| label: richness-mixed-model
 
 # construct model
-richness_mod <- lmer(
-  Observed ~ shorePosition +
-    averageTemp +
-    averagePH + (1 | country / verbatimLocality),
-  data = diversity_meta
+richness_mod <- glmer(
+  Observed ~ country + shorePosition + averageTemp + averagePH +
+    (1 | country:verbatimLocality),
+  data = diversity_meta,
+  family = poisson,
+  control = glmerControl(optimizer = "bobyqa")
 )
 
 #outputs
 summary(richness_mod)
 anova(richness_mod)
+Anova(richness_mod)
 
 # get p-values
 beta_hat <- fixef(richness_mod)  # Estimated coefficients
@@ -1056,10 +1058,7 @@ qqline(resid(richness_mod)) #tail but not too bad
 #| label: richness-mixed-model-cal-variation
 
 # random variance
-121.64/(121.64 + 53.51 +  211.48) #31.7% for the nested random component
-
-# region alone
-46.67/(119.37 + 46.67 +  218.58) #12.1%
+123.0/(211.4   + 123.0)*100 #36.78% for the nested random component
 ```
 
 ```{r}
@@ -1079,16 +1078,18 @@ Let's do the same again for Shannon.
 #| label: shannon-mixed-model
 
 # build model
+#diversity_meta$Shannon_adj <- diversity_meta$Shannon + 0.001
+
 shannon_mod <- lmer(
-  Shannon ~ shorePosition +
-    averageTemp +
-    averagePH + (1 | country / verbatimLocality),
+  Shannon ~ country + shorePosition + averageTemp + averagePH +
+    (1 | country:verbatimLocality),
   data = diversity_meta
 )
 
 # outputs
 summary(shannon_mod)
 anova(shannon_mod)
+Anova(shannon_mod, type = "II")
 
 # get p-values
 beta_hat <- fixef(shannon_mod)  # Estimated coefficients
@@ -1114,10 +1115,7 @@ qqline(resid(shannon_mod)) #tail but not too bad
 #| label: shannon-mixed-model-cal-variation
 
 # check random variance
-0.06583/(0.058467 + 0 +  0.44037)*100 #13.1967% for the nested random component
-
-# region alone
-0.03528/(0.02608 + 0.03528 +  0.45212)*100 #6.87%
+0.06655 /(0.06655   + 0.44087 )*100 #13.11537% for the nested random component
 ```
 
 ```{r}
@@ -1239,7 +1237,7 @@ shannon_shore
 #| label: richness-temp-scatter-pred
 
 # Extract the prediction data frame
-pred.temp.rich <- ggpredict(richness_mod, terms = c("averageTemp", "shorePosition"))
+pred.temp.rich <- ggpredict(richness_mod, terms = c("averageTemp [all]", "shorePosition"), bias_correction = TRUE)
 
 #plot(pred.temp.rich, show_data = TRUE, jitter = TRUE)
 
@@ -1256,15 +1254,15 @@ richness_temp <- ggplot() +
   # Add predicted lines with color mapping by shorePosition
   geom_line(data = pred.temp.rich,
             aes(x = x, y = predicted, colour = group),
-            size = 1.2) +
+            linewidth = 1.2) +
   
   # Add confidence intervals (shading) by shorePosition
   geom_ribbon(
     data = pred.temp.rich,
     aes(
       x = x,
-      ymin = predicted - std.error,
-      ymax = predicted + std.error,
+      ymin = conf.low,
+      ymax = conf.high,
       fill = group
     ),
     alpha = 0.5
@@ -1286,12 +1284,72 @@ richness_temp <- ggplot() +
   # Labels and theme
   xlab("Temperature (°C)") +
   ylab("Richness") +
-  xlim(10, 25) +
+  xlim(10, 26) +
   labs(colour = "Shore Position", fill = "Shore Position") +
   theme_classic()+
   theme(legend.position = "none")
 
 richness_temp
+```
+
+```{r}
+
+#| label: richness-ph-scatter-pred
+
+# Extract the prediction data frame
+pred.ph.rich <- ggpredict(richness_mod, terms = c("averagePH [all]", "shorePosition"), bias_correction = TRUE)
+
+#plot(pred.ph.rich, show_data = TRUE, jitter = TRUE)
+
+# Plot
+richness_ph <- ggplot() +
+  # Add observed data points
+  geom_point(
+    data = diversity_meta,
+    aes(x = averagePH, y = Observed, colour = shorePosition),
+    size = 1.8,
+    alpha = 0.5
+  ) +
+  
+  # Add predicted lines with color mapping by shorePosition
+  geom_line(data = pred.ph.rich,
+            aes(x = x, y = predicted, colour = group),
+            linewidth = 1.2) +
+  
+  # Add confidence intervals (shading) by shorePosition
+  geom_ribbon(
+    data = pred.ph.rich,
+    aes(
+      x = x,
+      ymin = conf.low,
+      ymax = conf.high,
+      fill = group
+    ),
+    alpha = 0.5
+  ) +
+  
+  # Set manual colors for shorePosition
+  scale_colour_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  scale_fill_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  # Labels and theme
+  xlab("pH") +
+  ylab("Richness") +
+  #xlim(10, 26) +
+  labs(colour = "Shore Position", fill = "Shore Position") +
+  theme_classic()+
+  theme(legend.position = "none")
+
+richness_ph
 ```
 
 ```{r}
@@ -1354,6 +1412,64 @@ shannon_temp
 
 ```{r}
 
+#| label: shannon-ph-scatter-pred
+
+# Extract the prediction data frame
+pred.ph.shannon <- ggpredict(shannon_mod, terms = c("averagePH", "shorePosition"))
+
+# plot
+shannon_ph<- ggplot() +
+  # Add observed data points
+  geom_point(
+    data = diversity_meta,
+    aes(x = averagePH, y = Shannon, colour = shorePosition),
+    size = 1.8,
+    alpha = 0.5
+  ) +
+  
+  # Add predicted lines with color mapping by shorePosition
+  geom_line(data = pred.ph.shannon,
+            aes(x = x, y = predicted, colour = group),
+            size = 1.2) +
+  
+  # Add confidence intervals (shading) by shorePosition
+  geom_ribbon(
+    data = pred.ph.shannon,
+    aes(
+      x = x,
+      ymin = predicted - std.error,
+      ymax = predicted + std.error,
+      fill = group
+    ),
+    alpha = 0.3
+  ) +
+  
+  # Set manual colors for shorePosition
+  scale_colour_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  scale_fill_manual(values = c(
+    "Low" = "lightblue4",
+    "High" = "lightblue3",
+    "Open Water" = "grey80"
+  )) +
+  
+  # Labels and theme
+  xlab("pH") +
+  ylab("Shannon Diversity Index") +
+  #xlim(10, 25) +
+  labs(colour = "Shore Position", fill = "Shore Position") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+shannon_ph
+```
+
+```{r}
+
 #| label: alpha-figure-final-plot
 
 alpha_plot_all <- plot_grid(rich_shore, richness_temp, shannon_shore, shannon_temp, labels = c("a", "b", "c", "d"), ncol = 2, align = "v")
@@ -1363,6 +1479,19 @@ ggsave(filename = "Figures/alpha_plot_all.png", plot = alpha_plot_all ,
        device = "png", dpi = 300, units = "mm", height = 200, width = 230)
 
 alpha_plot_all
+```
+
+```{r}
+
+#| label: alpha-figure-final-plot-ph
+
+alpha_plot_all2 <- plot_grid(rich_shore, shannon_shore, richness_temp, shannon_temp, richness_ph, shannon_ph, labels = c("a", "b", "c", "d", "e", "f", "g"), ncol = 2, align = "v")
+
+#save
+ggsave(filename = "Figures/alpha_plot_all_2.png", plot = alpha_plot_all2 ,
+       device = "png", dpi = 300, units = "mm", height = 300, width = 230)
+
+alpha_plot_all2
 ```
 
 #### Split by algal and inverts
