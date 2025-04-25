@@ -50,7 +50,9 @@ packages <- c("devtools",
               "emmeans",
               "ggeffects",
               "gridExtra",
-              "merDeriv")
+              "merDeriv", 
+              "ggrepel",
+              "sf")
 
 new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -133,6 +135,85 @@ We also need some extra meta data for looking at ecological concordance.
 #| label: import-biogeo-data
 
 biogeo <- read.csv("Input_Data/marclim_categories_tidy.csv")
+```
+
+## Map of sampling sites
+
+```{r}
+
+#| label: get-map-elements
+
+#blank map
+worldmap = map_data('world')
+worldUk <- subset(worldmap, region == c('UK','Ireland'))
+
+#convert to sf object
+sf_data <- st_as_sf(worldUk, coords = c("long", "lat"), crs = 4326)  # Specify CRS as WGS84 (EPSG:4326)
+
+# Get countries outline
+UK <- rnaturalearth::ne_countries(
+  country = c("United Kingdom", "Ireland"),
+  scale = "large", returnclass = "sf"
+)
+```
+
+```{r}
+
+#| label: get-map-lat-longs
+ 
+unique_data <- phylo_rocky_eDNA_long %>% distinct(decimalLongitude, decimalLatitude, verbatimLocality, .keep_all = TRUE)
+
+# Define custom colors for each country
+country_colors <- c("Scotland" = "darkseagreen3",
+                    "North Wales" = "lightpink2",
+                    "Northeast England" = "lightyellow2",
+                    "South Wales" = "lightblue2",
+                    "Southwest England" = "plum")
+```
+
+```{r}
+
+#| label: build-map
+
+site_map <- ggplot() + 
+  geom_sf(data = UK ,
+          fill = 'grey97', color = 'black') +
+  coord_sf(xlim = c(-10, 3), expand = TRUE) +
+  scale_x_continuous(sec.axis = dup_axis()) +
+  scale_y_continuous(sec.axis = dup_axis()) +
+  theme_bw() +
+  geom_point(data = unique_data, 
+             aes(x = as.numeric(decimalLongitude), 
+                 y = as.numeric(decimalLatitude), 
+                 fill = country), 
+             size = 2, alpha = 1,
+             shape = 21, 
+             stroke = 0.6) +  # Adjusted size for better visibility
+  scale_fill_manual(values = country_colors, guide = "none") +  # Apply custom colors and remove fill legend
+  scale_color_discrete(name = "Region") +  # Changed legend name to 'Region'
+  ggspatial::annotation_north_arrow(
+    location = "bl", which_north = "true",
+    style = ggspatial::north_arrow_nautical(
+      fill = c("grey40", "white"),
+      line_col = "grey20",
+      text_family = "ArcherPro Book"
+    )
+  ) +
+  ggspatial::annotation_scale(
+    location = "tl",
+    bar_cols = c("grey60", "white"),
+    text_family = "ArcherPro Book"
+  ) +
+  theme(legend.position = "left",
+        axis.title = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()
+  )
+
+ggsave(filename = "Figures/site_map_chpt1.png", plot = site_map,
+       device = "png", dpi = 300, units = "mm", height = 200, width = 150)
+
+site_map
 ```
 
 ## Sequence outputs
