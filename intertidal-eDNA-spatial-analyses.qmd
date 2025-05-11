@@ -65,7 +65,6 @@ invisible(lapply(packages, library, character.only = TRUE))
 Let's load our phyloseq object and long data, which have already been tidied, decontaminated, filtered for target taxa, and checked for quality control through [this pipeline](https://github.com/dinaleighsimons/intertidal-eDNA-formatting-and-quality-control).
 
 ```{r}
-
 #| label: load-data
 
 load("Input_Data/phylo_rocky_eDNA.RData")
@@ -75,7 +74,6 @@ phylo_rocky_eDNA_long <- read.csv("Input_data/phylo_rocky_eDNA_long.csv")
 Let's separate data sets for each primer.
 
 ```{r}
-
 #| label: split-data-by-primer
 
 phylo_rocky_eDNA_CO1 <- ps_filter(phylo_rocky_eDNA, primer == "CO1")
@@ -88,7 +86,6 @@ phylo_rocky_eDNA_18S
 Some of our data analysis (PERMANOVAs) is completed in PRIMER7, so we need to export elements of the `phylo` elements to use outside of R.
 
 ```{r}
-
 #| label: extract-data-for-PRIMER
 
 #all
@@ -131,7 +128,6 @@ write.csv(taxa_target_18S, file = "Processed_Data/PRIMER7_format/taxa_target_18S
 We also need some extra meta data for looking at ecological concordance.
 
 ```{r}
-
 #| label: import-biogeo-data
 
 biogeo <- read.csv("Input_Data/marclim_categories_tidy.csv")
@@ -140,7 +136,6 @@ biogeo <- read.csv("Input_Data/marclim_categories_tidy.csv")
 ## Map of sampling sites
 
 ```{r}
-
 #| label: get-map-elements
 
 #blank map
@@ -158,7 +153,6 @@ UK <- rnaturalearth::ne_countries(
 ```
 
 ```{r}
-
 #| label: get-map-lat-longs
  
 unique_data <- phylo_rocky_eDNA_long %>% distinct(decimalLongitude, decimalLatitude, verbatimLocality, .keep_all = TRUE)
@@ -172,7 +166,6 @@ country_colors <- c("Scotland" = "darkseagreen3",
 ```
 
 ```{r}
-
 #| label: build-map
 
 site_map <- ggplot() + 
@@ -221,7 +214,6 @@ site_map
 Explore what our `phyloseq` looks like.
 
 ```{r}
-
 #| label: explore-phylo
 
 phylo_rocky_eDNA 
@@ -233,7 +225,6 @@ table(meta(phylo_rocky_eDNA)$shorePosition, useNA = "always") #sample type
 We can also look to see how many samples are across different categories like primer, sample type and site.
 
 ```{r}
-
 #| label: explore-samples
 
 table(meta(phylo_rocky_eDNA)$primer, useNA = "always") #Primer
@@ -245,7 +236,6 @@ table(meta(phylo_rocky_eDNA)$verbatimLocality, useNA = "always") #sites
 And let's look at the `phyloseq` objects per primer.
 
 ```{r}
-
 #| label: primer-data-summaries
 
 microbiome::summarize_phyloseq(phylo_rocky_eDNA_CO1)
@@ -255,7 +245,6 @@ microbiome::summarize_phyloseq(phylo_rocky_eDNA_18S)
 Check how many samples were collected per site. We can see we have an unbalanced sampling effort.
 
 ```{r}
-
 #| label: samples-per-site
 
 meta_target$localityID = as.factor(meta_target$localityID)
@@ -279,7 +268,6 @@ Let's get some information about taxonomy.
 How many functional groups, phyla, families, genera, and taxa are in the data?
 
 ```{r}
-
 #| label: explore-taxonomy
 
 length(get_taxa_unique(phylo_rocky_eDNA, "scientificname"))
@@ -293,7 +281,6 @@ length(get_taxa_unique(phylo_rocky_eDNA, "adult")) #13 unique functional groups
 Let's explore the taxonomic resolution of our data (i.e. the proportion of each taxonomy ranking achieved).
 
 ```{r}
-
 #| label: taxonomic-resolution
 
 is_species_duplicate <- apply(taxonomy_table, 1, function(row) {
@@ -322,7 +309,6 @@ print(proportion_characterized)
 Let's use our rank variable to double check the above function.
 
 ```{r}
-
 #| label: taxonomic-resolution-rank
 
 taxonomy_table_summary <- as.data.frame(taxonomy_table) %>% 
@@ -338,7 +324,6 @@ taxonomy_table_summary
 Convert to relative abundances.
 
 ```{r}
-
 #| label: relative-abundance-calculaion
 
 pseq.rel <- microbiome::transform(phylo_rocky_eDNA, "compositional")
@@ -347,7 +332,6 @@ pseq.rel <- microbiome::transform(phylo_rocky_eDNA, "compositional")
 #### Primer crossover
 
 ```{r}
-
 #| label: primer-venn-diagram
 
 primers <- unique(as.character(meta(pseq.rel)$primer))
@@ -384,7 +368,6 @@ venn_all_primers
 #### Shore position crossover
 
 ```{r}
-
 #| label: shore-height-venn-diagram
 
 pseq.rel.type <- subset_samples(pseq.rel, shorePosition != "NA")
@@ -420,7 +403,6 @@ venn_all_shore
 ```
 
 ```{r}
-
 #| label: both-venn-diagram
 
 venn_two <- cowplot::plot_grid(
@@ -440,7 +422,6 @@ ggsave(filename = "Figures/venn_two.png", plot = venn_two,
 We can also look at crossover between regions, although the venn diagram is quite complex!
 
 ```{r}
-
 #| label: country-venn-diagram
 
 #using another venn function
@@ -466,7 +447,6 @@ ggvenn_pq(
 Let's make some simple visualizing of all taxonomic groups together.
 
 ```{r}
-
 #| label: taxa-together-kingdom
 
 taxonomy_table <- as.data.frame(taxonomy_table)
@@ -509,7 +489,6 @@ taxa_groups_bar_kingdom
 ```
 
 ```{r}
-
 #| label: taxa-together-phylum
 
 # Count the number of species for each phylum
@@ -550,7 +529,6 @@ taxa_groups_bar_phylum
 ```
 
 ```{r}
-
 #| label: taxa-together-functional-group
 
 #count number by functional group
@@ -638,7 +616,6 @@ ggsave(filename = "Figures/taxa_groups_bar_phylum_98_curated_functional.png", pl
 Let's set-up some variables for plotting.
 
 ```{r}
-
 #| label: plotting-label-orders
 
 site_order <- c(
@@ -702,7 +679,6 @@ Rarefaction curves are used to check if our read depths look suitable enough to 
 Scotland
 
 ```{r}
-
 #| label: rare-curve-sch
 
 # CO1
@@ -757,7 +733,6 @@ SCH_18S_curve <- ggplot(data = out_SCH_18S, mapping = aes(x = Sample, y = Specie
 South Wales
 
 ```{r}
-
 #| label: rare-curve-sw
 
 #CO1
@@ -812,7 +787,6 @@ SW_18S_curve <- ggplot(data = out_SW_18S, mapping = aes(x = Sample, y = Species,
 Cornwall
 
 ```{r}
-
 #| label: rare-curve-cn
 
 #CO1
@@ -867,7 +841,6 @@ CN_18S_curve <- ggplot(data = out_CN_18S, mapping = aes(x = Sample, y = Species,
 Northeast England
 
 ```{r}
-
 #| label: rare-curve-ne
 
 #CO1
@@ -922,7 +895,6 @@ NE_18S_curve <- ggplot(data = out_NE_18S, mapping = aes(x = Sample, y = Species,
 North Wales
 
 ```{r}
-
 #| label: rare-curve-nw
 
 #CO1
@@ -977,7 +949,6 @@ NW_18S_curve <- ggplot(data = out_NW_18S, mapping = aes(x = Sample, y = Species,
 Plot all together.
 
 ```{r}
-
 #| label: rare-curve-all
 
 curves_all <- cowplot::plot_grid(NW_18S_curve, 
@@ -1002,7 +973,6 @@ ggsave(filename = "Figures/rarefaction_curve_all.png", plot = curves_all,
 We tested if alpha diversity differed across shore heights through a mixed modelling approach.
 
 ```{r}
-
 #| label: calculate-alpha
 
 alpha_df <- phyloseq::estimate_richness(physeq = phylo_rocky_eDNA, measure = c("Observed", "Shannon"))
@@ -1011,7 +981,6 @@ head(alpha_df)
 ```
 
 ```{r}
-
 #| label: add-data-alpha
 
 # Add diversity metrics to sample data
@@ -1030,7 +999,6 @@ diversity_meta <- diversity_meta[!is.na(diversity_meta$averagePH), ]
 Let's check the distributions of our raw data.
 
 ```{r}
-
 #| label: check-alpha-distributions
 
 #response
@@ -1043,7 +1011,6 @@ histogram(diversity_meta$averagePH) #normal
 ```
 
 ```{r}
-
 #| label: mean-temp-over-shore
 
 diversity_meta_summary <- diversity_meta %>% 
@@ -1059,7 +1026,6 @@ ggplot(diversity_meta, aes(x = shorePosition, y = averageTemp)) +
 ```
 
 ```{r}
-
 #| label: visual-alpha-temp
 
 # richness vs temp
@@ -1077,7 +1043,6 @@ diversity_temp_scatter <- ggplot(diversity_meta, aes(x = averageTemp, y = Shanno
 ```
 
 ```{r}
-
 #| label: visual-alpha-ph
 
 # richness vs pH
@@ -1098,7 +1063,6 @@ diversity_pH_scatter #no pattern observed
 #### Mixed models
 
 ```{r}
-
 #| label: richness-mixed-model
 
 # construct model
@@ -1124,7 +1088,6 @@ p_values
 ```
 
 ```{r}
-
 #| label: richness-mixed-model-assumptions
 
 plot(richness_mod) #good
@@ -1135,7 +1098,6 @@ qqline(resid(richness_mod)) #tail but not too bad
 ```
 
 ```{r}
-
 #| label: richness-mixed-model-cal-variation
 
 # random variance
@@ -1143,7 +1105,6 @@ qqline(resid(richness_mod)) #tail but not too bad
 ```
 
 ```{r}
-
 #| label: richness-random-se
 
 sqrt(diag(vcov(richness_mod, full = TRUE)))
@@ -1155,7 +1116,6 @@ sqrt(diag(vv)[grepl("^cov", colnames(vv))]) # pick out the random components
 Let's do the same again for Shannon.
 
 ```{r}
-
 #| label: shannon-mixed-model
 
 # build model
@@ -1181,7 +1141,6 @@ p_values
 ```
 
 ```{r}
-
 #| label: shannon-mixed-model-assumptions
 
 plot(shannon_mod) #good
@@ -1192,7 +1151,6 @@ qqline(resid(shannon_mod)) #tail but not too bad
 ```
 
 ```{r}
-
 #| label: shannon-mixed-model-cal-variation
 
 # check random variance
@@ -1200,7 +1158,6 @@ qqline(resid(shannon_mod)) #tail but not too bad
 ```
 
 ```{r}
-
 #| label: shannon-random-se
 
 sqrt(diag(vcov(shannon_mod, full = TRUE)))
@@ -1212,7 +1169,6 @@ sqrt(diag(vv)[grepl("^cov", colnames(vv))]) # pick out the random components
 #### Planned contrasts
 
 ```{r}
-
 #| label: set-contrast-levels
 
 Open = c(0, 0, 1)
@@ -1222,7 +1178,6 @@ Low_and_high = (Low + High)/2
 ```
 
 ```{r}
-
 #| label: contrast-richness
 
 emms_richness <- emmeans::emmeans(richness_mod, ~ shorePosition)
@@ -1240,7 +1195,6 @@ confint(contrast_richness_2)
 ```
 
 ```{r}
-
 #| label: contrast-shannon
 
 emms_shannon <- emmeans::emmeans(shannon_mod, ~ shorePosition)
@@ -1260,7 +1214,6 @@ confint(contrast_shannon_2)
 #### Box and scatter plots
 
 ```{r}
-
 #| label: richness-shore-height-boxplot
 
 rich_shore <- ggplot(aes(shorePosition, Observed, fill = shorePosition), data = diversity_meta) +
@@ -1287,7 +1240,6 @@ rich_shore
 ```
 
 ```{r}
-
 #| label: shannon-shore-height-boxplot
 
 shannon_shore <- ggplot(aes(shorePosition, Shannon, fill = shorePosition), data = diversity_meta) +
@@ -1314,7 +1266,6 @@ shannon_shore
 ```
 
 ```{r}
-
 #| label: richness-temp-scatter-pred
 
 # Extract the prediction data frame
@@ -1374,7 +1325,6 @@ richness_temp
 ```
 
 ```{r}
-
 #| label: richness-ph-scatter-pred
 
 # Extract the prediction data frame
@@ -1434,7 +1384,6 @@ richness_ph
 ```
 
 ```{r}
-
 #| label: shannon-temp-scatter-pred
 
 # Extract the prediction data frame
@@ -1492,7 +1441,6 @@ shannon_temp
 ```
 
 ```{r}
-
 #| label: shannon-ph-scatter-pred
 
 # Extract the prediction data frame
@@ -1550,7 +1498,6 @@ shannon_ph
 ```
 
 ```{r}
-
 #| label: alpha-figure-final-plot
 
 alpha_plot_all <- plot_grid(rich_shore, richness_temp, shannon_shore, shannon_temp, labels = c("a", "b", "c", "d"), ncol = 2, align = "v")
@@ -1563,7 +1510,6 @@ alpha_plot_all
 ```
 
 ```{r}
-
 #| label: alpha-figure-final-plot-ph
 
 alpha_plot_all2 <- plot_grid(rich_shore, shannon_shore, richness_temp, shannon_temp, richness_ph, shannon_ph, labels = c("a", "b", "c", "d", "e", "f", "g"), ncol = 2, align = "v")
@@ -1580,7 +1526,6 @@ alpha_plot_all2
 We can also look at diversity across invertebrates and algal separately.
 
 ```{r}
-
 #| label: define-inverts-algae
 
 invert_phyla <- c("Acoela",
@@ -1634,7 +1579,6 @@ algae_phyla <- c("Chlorophyta",
 ```
 
 ```{r}
-
 #| label: filter-phylo-inverts-algae
 
 physeq_invert <- subset_taxa(phylo_rocky_eDNA, phylum %in% invert_phyla)
@@ -1648,7 +1592,6 @@ physeq_algae_noNA <- ps_filter(physeq_algae, country != "NA")
 ```
 
 ```{r}
-
 #| label: wrangle-for-comparison-plot-algae-inverts
 
 richness_invert <- estimate_richness(physeq_invert_noNA, measures = c("Observed", "Shannon")) %>% mutate(physeq_object = "Invertebrates")
@@ -1679,7 +1622,6 @@ long_richness <- combined_richness %>%
 ```
 
 ```{r}
-
 #| label: plot-algae-invert-richness-region
 
 split_diversity_region <- ggplot(long_richness, aes(x = region, y = Value, colour = physeq_object)) +
@@ -1705,7 +1647,6 @@ split_diversity_region
 ```
 
 ```{r}
-
 #| label: plot-algae-invert-richness-shoreheight
 
 split_diversity_type <- ggplot(long_richness,
@@ -1732,7 +1673,6 @@ split_diversity_type
 Join for export.
 
 ```{r}
-
 #| label: plot-algae-invert-richness-both
 
 split_both <- cowplot::plot_grid(
@@ -1755,7 +1695,6 @@ ggsave(filename = "Figures/alpha_both_split.png", plot = split_both,
 While our stats are performed in PRIMER7, we create our NMDS and dissimilarity plots here.
 
 ```{r}
-
 #| label: beta-data-set-up
 
 # filter out any NAs for variables of interest
@@ -1774,7 +1713,6 @@ pseq_18S_pruned <- ps_filter(physeq_beta_PA, primer == "18S")
 #### NMDS plots
 
 ```{r}
-
 #| label: calculate-nmds-jaccard-co1
 
 ord.nmds.jaccard.CO1 <- ordinate(pseq_CO1_pruned, method = "NMDS", distance =
@@ -1784,7 +1722,6 @@ stress_value_jaccard_CO1 <- ord.nmds.jaccard.CO1$stress
 ```
 
 ```{r}
-
 #| label: calculate-nmds-jaccard-18s
 
 ord.nmds.jaccard.18S <- ordinate(pseq_18S_pruned, method = "NMDS", distance =
@@ -1793,7 +1730,6 @@ stress_value_jaccard_18S <- ord.nmds.jaccard.18S$stress
 ```
 
 ```{r}
-
 #| label: nmds-region-jaccard-co1
 
 NMDS_region_CO1_jaccard <- plot_ordination(pseq_CO1_pruned, ord.nmds.jaccard.CO1, color="country")+
@@ -1819,7 +1755,6 @@ NMDS_region_CO1_jaccard
 ```
 
 ```{r}
-
 #| label: nmds-region-jaccard-18S
 
 NMDS_region_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S, color="country")+
@@ -1843,7 +1778,6 @@ NMDS_region_18S_jaccard
 ```
 
 ```{r}
-
 #| label: nmds-shore-height-jaccard-co1
 
 NMDS_type_CO1_jaccard<- plot_ordination(pseq_CO1_pruned, ord.nmds.jaccard.CO1, color="shorePosition") +
@@ -1865,7 +1799,6 @@ NMDS_type_CO1_jaccard
 ```
 
 ```{r}
-
 #| label: nmds-shore-height-jaccard-18s
 
 NMDS_type_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S, color="shorePosition") +
@@ -1886,7 +1819,6 @@ NMDS_type_18S_jaccard
 ```
 
 ```{r}
-
 #| label: nmds-all-plot-export
 
 NMDS_jaccard_all<- cowplot::plot_grid(NMDS_region_18S_jaccard, NMDS_type_18S_jaccard,NMDS_region_CO1_jaccard, NMDS_type_CO1_jaccard, labels = c("a", "b", "c", "d"), ncol = 2, align = "hv")
@@ -1899,7 +1831,6 @@ ggsave("Figures/NMDS_jaccard_all.png", NMDS_jaccard_all, units = "mm", width = 2
 #### Pairwise dissimilarity boxplots
 
 ```{r}
-
 #| label: jaccard-matrix-co1
 
 jaccard_dist_CO1 <- phyloseq::distance(pseq_CO1_pruned, method="jaccard")
@@ -1911,7 +1842,6 @@ longData_CO1<-longData_CO1[longData_CO1$value!=0,]
 ```
 
 ```{r}
-
 #| label: subset-meta-co1
 
 metadf <- data.frame(sample_data(pseq_CO1_pruned))
@@ -1919,7 +1849,6 @@ metadf_shore <- metadf %>% subset(select = c("fullID", "verbatimLocality", "shor
 ```
 
 ```{r}
-
 #| label: format-data-for-comparisons-CO1
 
 # Join longData_CO1 with metadf_shore to get Var1_position
@@ -1992,7 +1921,6 @@ longData_CO1_samesites <- longData_CO1 %>% filter(sameSite == TRUE)
 ```
 
 ```{r}
-
 #| label: summarise-data-for-comparisons-CO1
 
 # Plotting the boxplot using ggplot2
@@ -2039,7 +1967,6 @@ filtered_sites <- longData_CO1_samesites #%>%
 ```
 
 ```{r}
-
 #| label: label-variables-diss-comparisons
 
 comparison_order <- c("High vs Open Water",
@@ -2083,7 +2010,6 @@ filtered_sites$comparison <- factor(
 ```
 
 ```{r}
-
 #| label: plot-jaccard-comparisons-regions-co1
 
 compare_jaccard_regions <- ggplot(filtered_sites, aes(x = Var1_country, y = value, fill = comparison, colour = comparison)) +
@@ -2123,7 +2049,6 @@ compare_jaccard_regions
 Same again for 18S.
 
 ```{r}
-
 #| label: jaccard-matrix-18S
 
 #Produce distance matrix
@@ -2140,7 +2065,6 @@ longData_18S<-longData_18S[longData_18S$value!=0,]
 ```
 
 ```{r}
-
 #| label: format-data-for-comparisons-18s
 
 # Join longData_CO1 with metadf_shore to get Var1_position
@@ -2216,7 +2140,6 @@ which(longData_18S_samesites$Var1_site != longData_18S_samesites$Var2_site)
 ```
 
 ```{r}
-
 #| label: summarise-data-for-comparisons-18s
 
 # Calculate the averages for each group
@@ -2270,7 +2193,6 @@ filtered_sites_18S$comparison <- factor(
 ```
 
 ```{r}
-
 #| label: plot-jaccard-comparisons-regions-18S
 
 compare_jaccard_regions_18S <- ggplot(filtered_sites_18S, aes(x = Var1_country, y = value, colour = comparison, fill = comparison)) +
@@ -2308,7 +2230,6 @@ compare_jaccard_regions_18S
 ```
 
 ```{r}
-
 #| label: get-legend-for-plot
 
 compare_jaccard <- ggplot(filtered_sites, aes(x = Var1_site, y = value, fill = comparison, colour = comparison)) +
@@ -2352,7 +2273,6 @@ legend <- g_legend(compare_jaccard)
 ```
 
 ```{r}
-
 #| label: plot-jaccard-comparisons-region-all
 
 region_jaccard <- cowplot::plot_grid(
@@ -2369,7 +2289,6 @@ region_jaccard
 We need to filter our data for those which we have ecological information on. In our case, we are looking at the MarClim species.
 
 ```{r}
-
 #| label: define-marclim-genera
 
 Marclim_genera_list <- c(
@@ -2451,7 +2370,6 @@ Marclim_genera_list <- c(
 Let's look at the number of reads of each MarClim species across shore heights, sites and regions. These will be saved into the figure folder within the project.
 
 ```{r}
-
 #| label: marclim-taxa-shore-height-figures
 
 for (i in Marclim_genera_list) {
@@ -2483,7 +2401,6 @@ for (i in Marclim_genera_list) {
 ```
 
 ```{r}
-
 #| label: marclim-taxa-regions-figures
 
 for (i in Marclim_genera_list) {
@@ -2514,7 +2431,6 @@ for (i in Marclim_genera_list) {
 ```
 
 ```{r}
-
 #| label: marclim-taxa-sites-figures
 
 for (i in Marclim_genera_list) {
@@ -2549,7 +2465,6 @@ for (i in Marclim_genera_list) {
 Now let's make some overall composition plots. We need to do some data wrangling first.
 
 ```{r}
-
 #| label: adding-biogeo-data
 
 # filter just Marclim species
@@ -2576,7 +2491,6 @@ eDNA_present <- eDNA %>% filter(pa > 0)
 ### Shore height concordance
 
 ```{r}
-
 #| label: wrangling-for-shore-height-comp
 
 # Gather high, low, subtidal columns into a 'zone' column
@@ -2609,7 +2523,6 @@ df_summary <- df_summary %>%
 Now plot the figure.
 
 ```{r}
-
 #| label: shore-height-concordance-plot
 
 shore_height_prop <- ggplot(df_summary,
@@ -2647,7 +2560,6 @@ shore_height_prop
 ### Regional concordance
 
 ```{r}
-
 #| label: wrangling-for-regional-comp
 
 df_summary_region <- df_long %>%
@@ -2678,7 +2590,6 @@ df_summary_region <- df_summary_region %>%
 Now plot the figure.
 
 ```{r}
-
 #| label: regional-concordance-plot
 
 region_biogeo_prop <- ggplot(df_summary_region,
@@ -2721,7 +2632,6 @@ region_biogeo_prop
 Make overall figure.
 
 ```{r}
-
 #| label: join-concordance-plot
 
 concordance_plot_prop <- cowplot::plot_grid(
