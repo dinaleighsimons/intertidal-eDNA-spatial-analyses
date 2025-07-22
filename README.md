@@ -19,7 +19,7 @@ This GitHub repository contains data and R code for reproducing analyses present
 2. Open the RStudio project file (intertidal-eDNA-spatial-analyses.Rproj) to set up the project environment.
 3. Run the Quarto file (intertidal-eDNA-spatial-analyses.qmd) to reproduce the analyses and generate the figures.
 
-Alternatively, readers can download intertidal-eDNA-spatial-analyses.html and open in any browser to view the full output of analysis with having to rerun. 
+Alternatively, readers can download intertidal-eDNA-spatial-analyses.html and open in any browser to view the full output of analysis without needing to rerun. 
 
 ## Contact
 For questions or suggestions, please contact Dina-Leigh Simons at dinathebiologist@gmail.com.
