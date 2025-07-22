@@ -319,6 +319,18 @@ taxonomy_table_summary <- as.data.frame(taxonomy_table) %>%
 taxonomy_table_summary
 ```
 
+### Define figure colours
+
+Let's also set-up our colors for all the following plots.
+
+```{r}
+#| label: plot_colours
+
+highshore_colour = "#FFD485"
+lowshore_colour = "#D44953"
+openwater_colour= "#70CBFF"
+```
+
 ### Venn diagrams
 
 Convert to relative abundances.
@@ -374,9 +386,9 @@ pseq.rel.type <- subset_samples(pseq.rel, shorePosition != "NA")
 shore <- unique(as.character(meta(pseq.rel.type)$shorePosition))
 
 # supplying colors in the order they appear in list_core
-mycols <- c("High"="lightblue",
-            "Low"="lightblue4",
-            "Open Water " = "white") 
+mycols <- c("High"=highshore_colour,
+            "Low"=lowshore_colour,
+            "Open Water " = openwater_colour) 
 
 list_core <- c() # an empty object to store information
 
@@ -1222,9 +1234,9 @@ rich_shore <- ggplot(aes(shorePosition, Observed, fill = shorePosition), data = 
   xlab("Shore height") +
   ylab("Richness") +
   scale_fill_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    'Open Water' = 'grey80'
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    'Open Water' = openwater_colour
   )) +
   #geom_signif(comparisons = list(c("High", "Low")),
   #map_signif_level = TRUE, , tip_length = 0,
@@ -1255,9 +1267,9 @@ shannon_shore <- ggplot(aes(shorePosition, Shannon, fill = shorePosition), data 
   #annotation = "***") +
   ylim(0, 4.5) +
   scale_fill_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    'Open Water' = 'grey80'
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    'Open Water' = openwater_colour
   )) +
   theme_classic() +
   theme(legend.position = "none")
@@ -1302,15 +1314,15 @@ richness_temp <- ggplot() +
   
   # Set manual colors for shorePosition
   scale_colour_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   scale_fill_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   # Labels and theme
@@ -1361,15 +1373,15 @@ richness_ph <- ggplot() +
   
   # Set manual colors for shorePosition
   scale_colour_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   scale_fill_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   # Labels and theme
@@ -1418,15 +1430,15 @@ shannon_temp <- ggplot() +
   
   # Set manual colors for shorePosition
   scale_colour_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   scale_fill_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   # Labels and theme
@@ -1475,15 +1487,15 @@ shannon_ph<- ggplot() +
   
   # Set manual colors for shorePosition
   scale_colour_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   scale_fill_manual(values = c(
-    "Low" = "lightblue4",
-    "High" = "lightblue3",
-    "Open Water" = "grey80"
+    "Low" = lowshore_colour,
+    "High" = highshore_colour,
+    "Open Water" = openwater_colour
   )) +
   
   # Labels and theme
@@ -1716,7 +1728,7 @@ pseq_18S_pruned <- ps_filter(physeq_beta_PA, primer == "18S")
 #| label: calculate-nmds-jaccard-co1
 
 ord.nmds.jaccard.CO1 <- ordinate(pseq_CO1_pruned, method = "NMDS", distance =
-                                   "jaccard")
+                                   "jaccard", k = 3)
 
 stress_value_jaccard_CO1 <- ord.nmds.jaccard.CO1$stress
 ```
@@ -1725,7 +1737,7 @@ stress_value_jaccard_CO1 <- ord.nmds.jaccard.CO1$stress
 #| label: calculate-nmds-jaccard-18s
 
 ord.nmds.jaccard.18S <- ordinate(pseq_18S_pruned, method = "NMDS", distance =
-                                   "jaccard")
+                                   "jaccard", k = 3)
 stress_value_jaccard_18S <- ord.nmds.jaccard.18S$stress
 ```
 
@@ -1736,7 +1748,7 @@ NMDS_region_CO1_jaccard <- plot_ordination(pseq_CO1_pruned, ord.nmds.jaccard.CO1
   scale_colour_manual(values = c("Scotland" = "darkseagreen",
                                  "North Wales" = "lightpink3",
                                  "Northeast England" = "yellow3",
-                                 "South Wales" = "lightblue",
+                                 "South Wales" = highshore_colour,
                                  "Southwest England" = "mediumpurple")) +
   theme_classic()+ 
   #theme(legend.position = "none")+ 
@@ -1761,7 +1773,7 @@ NMDS_region_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S
   scale_colour_manual(values = c("Scotland" = "darkseagreen",
                                  "North Wales" = "lightpink3",
                                  "Northeast England" = "yellow3",
-                                 "South Wales" = "lightblue",
+                                 "South Wales" = highshore_colour,
                                  "Southwest England" = "mediumpurple")) +
   theme_classic()+
   theme(legend.position = "none")+ 
@@ -1770,7 +1782,7 @@ NMDS_region_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S
   stat_ellipse(aes(group = country), type = "t", linetype = 1, size = 0.5)+
   #annotate("text", x = -1.1, y = 0.9, label = paste("18S"), 
            #size = 4)+
-  xlim(-1.1,1.1)+ #to remove weird outlier
+  xlim(-1.2,1.8)+ #to remove weird outlier
   labs(color = "Region") 
 
 
@@ -1781,9 +1793,9 @@ NMDS_region_18S_jaccard
 #| label: nmds-shore-height-jaccard-co1
 
 NMDS_type_CO1_jaccard<- plot_ordination(pseq_CO1_pruned, ord.nmds.jaccard.CO1, color="shorePosition") +
-  scale_colour_manual(values = c("Low" = "lightblue4", 
-                               "High" = "lightblue3",
-                               'Open Water' = 'grey70')) +
+  scale_colour_manual(values = c("Low" = lowshore_colour, 
+                               "High" = highshore_colour,
+                               'Open Water' = openwater_colour)) +
   theme_classic()+
   #theme(legend.position = "none")+ 
   annotate("text", x = Inf, y = Inf, label = paste("Stress =", round(stress_value_jaccard_CO1, 3)), 
@@ -1802,9 +1814,9 @@ NMDS_type_CO1_jaccard
 #| label: nmds-shore-height-jaccard-18s
 
 NMDS_type_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S, color="shorePosition") +
-  scale_colour_manual(values = c("Low" = "lightblue4", 
-                                 "High" = "lightblue3",
-                                 'Open Water' = 'grey70')) +
+  scale_colour_manual(values = c("Low" = lowshore_colour, 
+                                 "High" = highshore_colour,
+                                 'Open Water' = openwater_colour)) +
   theme_classic()+
   theme(legend.position = "none")+ 
   annotate("text", x = Inf, y = Inf, label = paste("Stress =", round(stress_value_jaccard_18S, 3)), 
@@ -1812,7 +1824,7 @@ NMDS_type_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S, 
   stat_ellipse(aes(group = shorePosition), type = "t", linetype = 1, size = 0.5)+
   #annotate("text", x = -1.1, y = 1, label = paste("18S"), 
            #size = 4)+
-  xlim(-1.1, 1)+
+  xlim(-1.1, 1.8)+
   labs(color = "Shore position")
 
 NMDS_type_18S_jaccard
@@ -1826,6 +1838,44 @@ NMDS_jaccard_all<- cowplot::plot_grid(NMDS_region_18S_jaccard, NMDS_type_18S_jac
 NMDS_jaccard_all
 
 ggsave("Figures/NMDS_jaccard_all.png", NMDS_jaccard_all, units = "mm", width = 240, height = 240)
+```
+
+#### Check for homogeneity of dispersion
+
+```{r}
+#| label: test-homogeneity-dispersion
+
+#CO1 - region
+jaccard_dist_CO1 <- distance(pseq_CO1_pruned, method = "jaccard")
+region <- sample_data(pseq_CO1_pruned)$country
+bd_CO1_r <- betadisper(d = jaccard_dist_CO1, group = region, type = "centroid")
+permutest(bd_CO1_r) #signficant
+
+#CO1 - shore height
+shore_height <- sample_data(pseq_CO1_pruned)$shorePosition
+bd_CO1_sh <- betadisper(d =jaccard_dist_CO1, group = shore_height, type = "centroid")
+permutest(bd_CO1_sh) #signficant
+
+#CO1 - sites
+sites <- sample_data(pseq_CO1_pruned)$verbatimLocality 
+bd_CO1_s <- betadisper(d =jaccard_dist_CO1, group = sites, type = "centroid")
+permutest(bd_CO1_s) #signficant
+
+#18S - region
+jaccard_dist_18S <- distance(pseq_18S_pruned, method = "jaccard")
+region <- sample_data(pseq_18S_pruned)$country
+bd_18S_r <- betadisper(d = jaccard_dist_18S, group = region, type = "centroid")
+permutest(bd_18S_r) #signficant
+
+#18S - shore height
+shore_height <- sample_data(pseq_18S_pruned)$shorePosition
+bd_18S_sh <- betadisper(d =jaccard_dist_18S, group = shore_height, type = "centroid")
+permutest(bd_18S_sh) #signficant
+
+#18S - sites
+sites <- sample_data(pseq_18S_pruned)$verbatimLocality 
+bd_18S_s <- betadisper(d =jaccard_dist_18S, group = sites, type = "centroid")
+permutest(bd_18S_s) #signficant
 ```
 
 #### Pairwise dissimilarity boxplots
@@ -2284,6 +2334,61 @@ ggsave(filename = "Figures/compare_jaccard_regionsonly_bothprimers.png", plot = 
 region_jaccard 
 ```
 
+#### Composition plots (shore height x site)
+
+```{r}
+#| label: shoreheight-across-sites
+
+# 1. Create output directory
+output_dir <- "Figures/CompAcrossSitesSamples"
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+# 2. Extract site names (verbatimLocality must be a sample variable)
+site_names <- unique(sample_data(phylo_rocky_eDNA)$verbatimLocality)
+
+# loop
+for (site in site_names) {
+  
+  # Subset phyloseq object by site
+  site_pseq <- subset_samples(phylo_rocky_eDNA, verbatimLocality == site)
+  
+  # Transform to relative abundance (compositional)
+  pseq_relabund <- microbiome::transform(site_pseq, "compositional")
+  
+  # Aggregate rare phyla
+  phylum_rareaggregate_pseq <- microbiome::aggregate_rare(
+    pseq_relabund,
+    level = "phylum",
+    detection = 0.01,
+    prevalence = 5 / 100
+  )
+  
+  # Melt to data frame
+  df <- psmelt(phylum_rareaggregate_pseq)
+  
+  # Plot manually
+  p <- ggplot(df, aes(x = Sample, y = Abundance, fill = phylum)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~shorePosition, scales = "free_x") +
+    xlab("Sample") +
+    ylab("Relative abundance") +
+    ggtitle(paste("Phylum relative abundance -", site)) +
+    scale_fill_viridis_d(option = "turbo") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  # Save plot
+  ggsave(
+    filename = file.path(output_dir, paste0("phylum_bar_", gsub("[^A-Za-z0-9]", "_", site), ".png")),
+    plot = p,
+    width = 10,
+    height = 6
+  )
+}
+```
+
 ## Ecological concordance
 
 We need to filter our data for those which we have ecological information on. In our case, we are looking at the MarClim species.
@@ -2531,8 +2636,8 @@ shore_height_prop <- ggplot(df_summary,
   labs(x = "Shore Height", y = "Proportion of Present Taxa", fill = "Recorded Shore Height") +
   scale_fill_manual(
     values = c(
-      "high" = "lightblue",
-      "low" = "lightblue4",
+      "high" = highshore_colour,
+      "low" = lowshore_colour,
       "subtidal" = "grey70",
       "high-low" = "orange2",
       "low-open" = "grey70"
