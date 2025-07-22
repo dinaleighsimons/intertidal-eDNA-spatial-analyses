@@ -1748,7 +1748,7 @@ NMDS_region_CO1_jaccard <- plot_ordination(pseq_CO1_pruned, ord.nmds.jaccard.CO1
   scale_colour_manual(values = c("Scotland" = "darkseagreen",
                                  "North Wales" = "lightpink3",
                                  "Northeast England" = "yellow3",
-                                 "South Wales" = highshore_colour,
+                                 "South Wales" = "lightblue",
                                  "Southwest England" = "mediumpurple")) +
   theme_classic()+ 
   #theme(legend.position = "none")+ 
@@ -1773,7 +1773,7 @@ NMDS_region_18S_jaccard <- plot_ordination(pseq_18S_pruned, ord.nmds.jaccard.18S
   scale_colour_manual(values = c("Scotland" = "darkseagreen",
                                  "North Wales" = "lightpink3",
                                  "Northeast England" = "yellow3",
-                                 "South Wales" = highshore_colour,
+                                 "South Wales" = "lightblue",
                                  "Southwest England" = "mediumpurple")) +
   theme_classic()+
   theme(legend.position = "none")+ 
@@ -2641,8 +2641,8 @@ shore_height_prop <- ggplot(df_summary,
       "high" = highshore_colour,
       "low" = lowshore_colour,
       "subtidal" = "grey70",
-      "high-low" = "orange2",
-      "low-open" = "grey70"
+      "high-low" = "orange3",
+      "low-open" = openwater_colour
     ),
     labels = c(
       "high" = "High only",
