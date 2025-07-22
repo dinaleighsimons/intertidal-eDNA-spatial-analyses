@@ -2336,6 +2336,8 @@ region_jaccard
 
 #### Composition plots (shore height x site)
 
+Let's take a closer look at what might be driving differences between similar shore heights.
+
 ```{r}
 #| label: shoreheight-across-sites
 
