@@ -1089,7 +1089,7 @@ richness_mod <- glmer(
 #outputs
 summary(richness_mod)
 anova(richness_mod)
-Anova(richness_mod)
+Anova(richness_mod, type = "II")
 
 # get p-values
 beta_hat <- fixef(richness_mod)  # Estimated coefficients
@@ -1150,6 +1150,10 @@ se_beta <- sqrt(diag(vcov(shannon_mod)))  # Standard errors of the coefficients
 t_values <- beta_hat / se_beta # Calculate Wald t-values manually
 p_values <- 2 * (1 - pnorm(abs(t_values)))  # Two-tailed test
 p_values
+
+# get df
+summary(shannon_mod, ddf = "Kenward-Roger") 
+anova(shannon_mod, ddf = "Kenward-Roger")
 ```
 
 ```{r}
