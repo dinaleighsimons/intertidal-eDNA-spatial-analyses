@@ -204,7 +204,7 @@ site_map <- ggplot() +
   )
 
 ggsave(filename = "Figures/site_map_chpt1.png", plot = site_map,
-       device = "png", dpi = 300, units = "mm", height = 200, width = 150)
+       device = "png", dpi = 600, units = "mm", height = 200, width = 150)
 
 site_map
 ```
@@ -428,7 +428,7 @@ venn_two <- cowplot::plot_grid(
 venn_two 
 
 ggsave(filename = "Figures/venn_two.png", plot = venn_two,
-       device = "png", dpi = 300, units = "mm", height = 550, width = 1250)
+       device = "png", dpi = 600, units = "mm", height = 550, width = 1250)
 ```
 
 We can also look at crossover between regions, although the venn diagram is quite complex!
@@ -620,7 +620,7 @@ taxa_groups_bar_phylum_functional
 
 # save
 ggsave(filename = "Figures/taxa_groups_bar_phylum_98_curated_functional.png", plot = taxa_groups_bar_phylum_functional,
-       device = "png", dpi = 300, units = "mm", height = 200, width = 300)
+       device = "png", dpi = 600, units = "mm", height = 200, width = 300)
 ```
 
 ## Diversity analyses
@@ -977,7 +977,7 @@ curves_all <- cowplot::plot_grid(NW_18S_curve,
 curves_all
 
 ggsave(filename = "Figures/rarefaction_curve_all.png", plot = curves_all,
-       device = "png", dpi = 300, units = "mm", height = 450, width = 300)
+       device = "png", dpi = 600, units = "mm", height = 450, width = 300)
 ```
 
 ### Alpha diversity
@@ -1520,7 +1520,7 @@ alpha_plot_all <- plot_grid(rich_shore, richness_temp, shannon_shore, shannon_te
 
 #save
 ggsave(filename = "Figures/alpha_plot_all.png", plot = alpha_plot_all ,
-       device = "png", dpi = 300, units = "mm", height = 200, width = 230)
+       device = "png", dpi = 600, units = "mm", height = 200, width = 230)
 
 alpha_plot_all
 ```
@@ -1532,7 +1532,7 @@ alpha_plot_all2 <- plot_grid(rich_shore, shannon_shore, richness_temp, shannon_t
 
 #save
 ggsave(filename = "Figures/alpha_plot_all_2.png", plot = alpha_plot_all2 ,
-       device = "png", dpi = 300, units = "mm", height = 300, width = 230)
+       device = "png", dpi = 600, units = "mm", height = 300, width = 230)
 
 alpha_plot_all2
 ```
@@ -1703,7 +1703,7 @@ split_both <- cowplot::plot_grid(
 split_both
 
 ggsave(filename = "Figures/alpha_both_split.png", plot = split_both,
-       device = "png", dpi = 300, units = "mm", height = 300, width = 300)
+       device = "png", dpi = 600, units = "mm", height = 300, width = 300)
 ```
 
 ### Beta diversity
@@ -2333,7 +2333,7 @@ region_jaccard <- cowplot::plot_grid(
   cowplot::plot_grid(compare_jaccard_regions_18S, compare_jaccard_regions, ncol = 1, labels = c("a", "b"), rel_heights = c(0.8, 1)), legend, ncol =1, rel_heights = c(1, 0.06))
 
 ggsave(filename = "Figures/compare_jaccard_regionsonly_bothprimers.png", plot = region_jaccard ,
-       device = "png", dpi = 300, units = "mm", height = 190, width = 200)
+       device = "png", dpi = 600, units = "mm", height = 190, width = 200)
 
 region_jaccard 
 ```
@@ -2501,7 +2501,7 @@ for (i in Marclim_genera_list) {
     
     # Save the plot to the folder
     plot_file_path <- paste0("Figures/Marclim_Shoreheights/", i, "_shoreposition.png")
-    ggsave(filename = plot_file_path, plot = p, width = 8, height = 6, dpi = 300)  # Adjust size as needed
+    ggsave(filename = plot_file_path, plot = p, width = 8, height = 6, dpi = 600)  # Adjust size as needed
     
   }, error = function(e) {
     # Handle the error: print a message and skip to the next genus
@@ -2532,7 +2532,7 @@ for (i in Marclim_genera_list) {
     
     # Save the plot to the folder
     plot_file_path <- paste0("Figures/Marclim_Regions/", i, "_regions.png")
-    ggsave(filename = plot_file_path, plot = p, width = 11, height = 9, dpi = 300)  # Adjust size as needed
+    ggsave(filename = plot_file_path, plot = p, width = 11, height = 9, dpi = 600)  # Adjust size as needed
     
   }, error = function(e) {
     # Handle the error: print a message and skip to the next genus
@@ -2563,7 +2563,7 @@ for (i in Marclim_genera_list) {
     
     # Save the plot to the folder
     plot_file_path <- paste0("Figures/Marclim_Sites/", i, "_sites.png")
-    ggsave(filename = plot_file_path, plot = p, width = 11, height = 9, dpi = 300)  # Adjust size as needed
+    ggsave(filename = plot_file_path, plot = p, width = 11, height = 9, dpi = 600)  # Adjust size as needed
     
   }, error = function(e) {
     # Handle the error: print a message and skip to the next genus
@@ -2758,7 +2758,7 @@ ggsave(
   filename = "Figures/concordance_plot_prop.png",
   plot = concordance_plot_prop,
   device = "png",
-  dpi = 300,
+  dpi = 600,
   units = "mm",
   height = 180,
   width = 310
