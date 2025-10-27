@@ -16,10 +16,15 @@ This pipeline replicates all analyses in Simons *et al* (2025) "Characterising r
 
 ## Load packages
 
+Some packages require installation from Bioconductor using the `BiocManager::install()` command or directly from GitHub.
+
 ```{r}
 #| label: load-packages
 #| echo: true
 #| results: false
+
+#clear environment
+rm(list = ls())
 
 packages <- c("devtools",
               "qiime2R", #github download
@@ -28,17 +33,17 @@ packages <- c("devtools",
               "vegan",
               "ggforce",
               "phyloseq",
-              "ANCOMBC",
+              "ANCOMBC", #bioc install
               "DT",
-              "ranacapa", #for ggrare
+              "ranacapa", #for ggrare, github download
               "plyr",
               "reshape2",
               "patchwork",
               "microViz",
               "microeco",
               "eulerr",
-              "microbiomeutilities",
-              "ggtreeExtra", #github
+              "microbiomeutilities", #github install
+              "ggtreeExtra", #bioc install
               "mgcv",
               "cowplot",
               "geosphere",
@@ -52,7 +57,9 @@ packages <- c("devtools",
               "gridExtra",
               "merDeriv", 
               "ggrepel",
-              "sf")
+              "sf",
+              "dada2" #bioc install
+              )
 
 new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -1014,12 +1021,12 @@ Let's check the distributions of our raw data.
 #| label: check-alpha-distributions
 
 #response
-histogram(sqrt(diversity_meta$Observed)) #normal
-histogram((diversity_meta$Shannon)) #fairly normal
+ggplot(diversity_meta, aes(x=sqrt(Observed))) + geom_histogram()
+ggplot(diversity_meta, aes(x=Shannon)) + geom_histogram()
 
 #predictors
-histogram(diversity_meta$averageTemp) #normal
-histogram(diversity_meta$averagePH) #normal
+ggplot(diversity_meta, aes(x=averageTemp)) + geom_histogram()
+ggplot(diversity_meta, aes(x=averagePH)) + geom_histogram()
 ```
 
 ```{r}
